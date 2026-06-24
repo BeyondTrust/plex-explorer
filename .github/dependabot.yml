@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /tools/grpc-probe
+    schedule:
+      interval: weekly
+    # Delay adopting freshly published versions so a compromised release has
+    # time to be detected and yanked before Dependabot opens a PR for it.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 7
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # github-actions only supports default-days (not the semver-* fields), so
+    # all action updates share a single cooldown window.
+    cooldown:
+      default-days: 7

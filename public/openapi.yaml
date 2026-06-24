@@ -1,0 +1,1619 @@
+openapi: "3.0.3"
+info:
+  title: Plex Sandbox — gRPC API Reference
+  version: "1.0.0"
+  description: |
+    Reconstructed gRPC service definitions for Microsoft Dataverse's plugin sandbox
+    infrastructure ("Plex"). Three services form the control plane: **SidecarService**
+    (host-side, 22 methods), **SandboxService** (worker, 4 methods), and
+    **SandboxManagerService** (gateway, 2 methods).
+
+    Proto definitions were extracted from decompiled .NET assemblies
+    (`SidecarContract.dll`, `SandboxGrpcContracts.dll`). All methods have been
+    tested live on production clusters.
+
+    gRPC methods are mapped as POST endpoints following standard transcoding conventions.
+
+servers:
+  - url: "https://sidecarIP:shimPort"
+    description: "SidecarService — host-side, from container env vars"
+  - url: "https://containerIP:9000"
+    description: "SandboxService — worker process inside container"
+  - url: "https://sbx.{region}.gateway.prod.island.powerapps.com:443"
+    description: "SandboxManagerService — external gateway"
+
+tags:
+  - name: SidecarService
+    description: |
+      `Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService` — 22 methods.
+      Runs on the host outside the container. Provides infrastructure services:
+      environment config, signing keys, cluster metadata, load reporting, telemetry.
+      No authentication required. Accessed via `sidecarIP:SideCarShimEndpointPort`
+      environment variables over gRPC/TLS.
+  - name: SandboxService
+    description: |
+      `CDSRunTime.Sandbox.Contract.SandboxService` — 4 methods.
+      Runs inside the container as the worker's gRPC server on port 9000.
+      Execute uses bidirectional streaming for the plugin callback protocol.
+      Auth: `x-ms-plex-nonce` metadata header (128-bit GUID). Ping is unauthenticated.
+  - name: SandboxManagerService
+    description: |
+      `CDSRunTime.Sandbox.Contract.SandboxManagerService` — 2 methods.
+      External gateway that routes Execute requests from the platform to
+      individual sandbox worker containers. Uses the same message types
+      as SandboxService.
+
+paths:
+  # ---------------------------------------------------------------------------
+  # SidecarService methods (21 methods)
+  # ---------------------------------------------------------------------------
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetWorkerAssignedMetadata:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetWorkerAssignedMetadata
+      summary: Retrieve metadata assigned to a worker instance
+      description: |
+        Unary RPC (MethodType 0). Returns worker metadata JSON, Application
+        Insights instrumentation key, and throttle end-time for the given
+        worker GUID. Called by the worker at startup.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/WorkerMetadataRequest"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/WorkerMetadataResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/LogWorkerTelemetry:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_LogWorkerTelemetry
+      summary: Stream telemetry data from worker to sidecar
+      description: |
+        Bidirectional streaming RPC (MethodType 3). Worker streams telemetry
+        events (communication, operation, trace) and receives acknowledgements.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/WorkerTelemetryRequest"
+      responses:
+        "200":
+          description: Stream of acknowledgements
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/WorkerTelemetryResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/SetNamingServiceProperty:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_SetNamingServiceProperty
+      summary: Update worker naming service properties (e.g., mark for deletion)
+      description: |
+        Unary RPC (MethodType 0). Allows the worker to set properties in the
+        Service Fabric naming service, such as marking itself for deletion
+        or reporting termination reasons.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/NamingServiceRequest"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/NamingServiceResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/ReportWorkerLoad:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_ReportWorkerLoad
+      summary: Report current worker load to the sidecar
+      description: |
+        Unary RPC (MethodType 0). Worker reports its current load (active
+        request count or load metric) for scaling decisions.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/WorkerLoadRequest"
+      responses:
+        "200":
+          description: Empty acknowledgement
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/WorkerLoadResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/ProcessPortProxyRequest:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_ProcessPortProxyRequest
+      summary: Request network port proxy creation for the worker
+      description: |
+        Unary RPC (MethodType 0). Worker requests the sidecar to create a
+        network port proxy/forwarding rule for outbound connectivity.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/CreateProxyRequest"
+      responses:
+        "200":
+          description: Proxy creation result
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/CreateProxyResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/ReportMetric:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_ReportMetric
+      summary: Report a custom metric with dimensions
+      description: |
+        Unary RPC (MethodType 0). Worker reports a named metric with a
+        numeric value and custom string-string dimension map for telemetry.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/MetricRequest"
+      responses:
+        "200":
+          description: Empty acknowledgement
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/MetricResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/LoadExtensionPackage:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_LoadExtensionPackage
+      summary: Load a named extension package by name and version
+      description: |
+        Unary RPC (MethodType 0). Worker requests the sidecar to load a
+        specific extension package identified by name and version.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/ExtensionPackageRequest"
+      responses:
+        "200":
+          description: Extension data or load failure
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/ExtensionPackageResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/LoadBackgroundExtensionPackage:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_LoadBackgroundExtensionPackage
+      summary: Load a background extension package by name
+      description: |
+        Unary RPC (MethodType 0). Worker requests loading of a background
+        extension package identified by name.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/BackgroundExtensionPackageRequest"
+      responses:
+        "200":
+          description: Extension version or load failure
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/BackgroundExtensionPackageResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/LoadDataverseExtensionAssembly:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_LoadDataverseExtensionAssembly
+      summary: Stream a Dataverse extension assembly to the worker
+      description: |
+        Server streaming RPC (MethodType 2). Worker provides an assembly ID
+        and hash code; the sidecar streams back the assembly content in chunks
+        or returns a load failure.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/LoadDataverseExtensionAssemblyRequest"
+      responses:
+        "200":
+          description: Stream of assembly content chunks
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/DataverseExtensionAssemblyResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/LoadHostInjectionPackage:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_LoadHostInjectionPackage
+      summary: Stream a host injection package to the worker
+      description: |
+        Server streaming RPC (MethodType 2). Sidecar streams host injection
+        package content to the worker, or returns a load failure.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/LoadHostInjectionPackageRequest"
+      responses:
+        "200":
+          description: Stream of package content chunks
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/HostInjectionPackageResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetServiceParameters:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetServiceParameters
+      summary: Get service parameters (extension, background, or plugin)
+      description: |
+        Unary RPC (MethodType 0). Returns service configuration parameters
+        in one of three variants: ExtensionServiceParameters,
+        BackgroundExtensionServiceParameters, or PluginServiceParameters.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/ServiceParametersRequest"
+      responses:
+        "200":
+          description: Service parameters
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/ServiceParametersResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetClusterEnvironmentSettings:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetClusterEnvironmentSettings
+      summary: Get cluster environment settings (geo, region, cluster name)
+      description: |
+        Unary RPC (MethodType 0). Returns environment metadata including
+        environment name, cluster category, geo name, cluster name, region
+        short name, region name, and cluster number.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/ClusterEnvironmentRequest"
+      responses:
+        "200":
+          description: Cluster environment settings
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/ClusterEnvironmentResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetCurrentInstanceCount:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetCurrentInstanceCount
+      summary: Get the current number of active worker instances
+      description: |
+        Unary RPC (MethodType 0). Returns the current count of active
+        sandbox worker instances in the cluster.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/GetCurrentInstanceCountRequest"
+      responses:
+        "200":
+          description: Instance count
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/GetCurrentInstanceCountResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetAccessToken:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetAccessToken
+      summary: Acquire an OAuth access token for a resource
+      description: |
+        Unary RPC. Takes ResourceId, TenantId, AppId, and Scope fields.
+        Returns either a ResourceAccessToken or an ErrorDetails string via
+        a oneof response. Currently returns "not supported" on tested clusters.
+        The Scope field (field 4) triggers a different code path that attempts
+        token acquisition but the backing provider is not configured.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/AccessTokenRequest"
+      responses:
+        "200":
+          description: Access token or error
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetTokenFromCustomerIdentity:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetTokenFromCustomerIdentity
+      summary: Acquire a token using customer identity
+      description: |
+        Unary RPC. Takes repeated scope strings. Returns a token and expiration
+        timestamp. Handler throws an exception on tested clusters — the
+        customer identity provider is not configured.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/GetCustomerIdentityTokenRequest"
+      responses:
+        "200":
+          description: Token and expiration
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/GetCustomerIdentityTokenResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetOpenIdSigningKeys:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetOpenIdSigningKeys
+      summary: Retrieve OpenID Connect signing keys
+      description: |
+        Unary RPC (MethodType 0). Returns the OpenID signing key JSON for
+        token validation purposes.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/OpenIdRequest"
+      responses:
+        "200":
+          description: Signing key JSON
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/OpenIdResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetIsIGTokenValidationEnabled:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetIsIGTokenValidationEnabled
+      summary: Check if IG token validation is enabled
+      description: |
+        Unary RPC (MethodType 0). Returns a boolean indicating whether
+        Instance Gateway token validation is enabled in this cluster.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/IGTokenValidationRequest"
+      responses:
+        "200":
+          description: Validation enabled flag
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/IGTokenValidationResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/SendCrashEvent:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_SendCrashEvent
+      summary: Report a crash event to the sidecar
+      description: |
+        Unary RPC (MethodType 0). Worker reports a crash event with
+        timestamp, crash type, and details. Response echoes back the
+        stored CrashEventDetail.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/CrashEventDetail"
+      responses:
+        "200":
+          description: Stored crash event detail
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/CrashEventDetail"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetLastCrashEvent:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetLastCrashEvent
+      summary: Retrieve the most recent crash event
+      description: |
+        Unary RPC (MethodType 0). Returns the last recorded crash event
+        detail for diagnostics. Request is an empty message.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/CrashEventRequest"
+      responses:
+        "200":
+          description: Last crash event detail
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/CrashEventDetail"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/ReportWorkerBusy:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_ReportWorkerBusy
+      summary: Report that the worker is busy processing a request
+      description: |
+        Unary RPC (MethodType 0). Worker signals it is busy. Response
+        contains expiry, idle expiry, and life expiry timestamps used
+        for scheduling and lifecycle management.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/WorkerBusyRequest"
+      responses:
+        "200":
+          description: Expiry timestamps
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/WorkerBusyResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/ReportWorkerComplete:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_ReportWorkerComplete
+      summary: Report that the worker has completed its current request
+      description: |
+        Unary RPC (MethodType 0). Worker signals completion. Both request
+        and response are empty messages.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/WorkerCompleteRequest"
+      responses:
+        "200":
+          description: Empty acknowledgement
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/WorkerCompleteResponse"
+
+  /Microsoft.PowerPlatform.Plex.SidecarContract.SidecarService/GetEnvironmentVariables:
+    post:
+      tags: [SidecarService]
+      operationId: SidecarService_GetEnvironmentVariables
+      summary: Retrieve environment variables from the sidecar
+      description: |
+        Unary RPC (MethodType 0). Returns a map of environment variable
+        names to values. May contain sensitive configuration.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/GetEnvironmentVariablesRequest"
+      responses:
+        "200":
+          description: Environment variable map
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/GetEnvironmentVariablesResponse"
+
+  # ---------------------------------------------------------------------------
+  # SandboxService methods (4 methods)
+  # ---------------------------------------------------------------------------
+
+  /CDSRunTime.Sandbox.Contract.SandboxService/Execute:
+    post:
+      tags: [SandboxService]
+      operationId: SandboxService_Execute
+      summary: Execute a plugin in the sandbox worker (bidirectional streaming)
+      description: |
+        Bidirectional streaming RPC (MethodType 3). The primary plugin execution
+        channel. The manager sends an initial ExecuteRequest with call info,
+        assembly details, and execution context. The worker may send back
+        callback requests (service bus, secret management, token acquisition,
+        data operations, etc.) via ExecuteResponse, and the manager replies
+        with the callback results via subsequent ExecuteRequest messages.
+
+        The request/response use extensive oneof patterns to multiplex many
+        different callback and response types over a single streaming channel.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/ExecuteRequest"
+      responses:
+        "200":
+          description: Stream of execution results and callback requests
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/ExecuteResponse"
+
+  /CDSRunTime.Sandbox.Contract.SandboxService/Ping:
+    post:
+      tags: [SandboxService]
+      operationId: SandboxService_Ping
+      summary: Health check the sandbox worker
+      description: |
+        Unary RPC (MethodType 0). Returns the worker service health status
+        (HEALTHY, UNHEALTHY, or UNKNOWN).
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/PingRequest"
+      responses:
+        "200":
+          description: Service health status
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/PingResponse"
+
+  /CDSRunTime.Sandbox.Contract.SandboxService/ShutdownService:
+    post:
+      tags: [SandboxService]
+      operationId: SandboxService_ShutdownService
+      summary: Request graceful shutdown of the sandbox worker
+      description: |
+        Unary RPC (MethodType 0). Instructs the worker to shut down
+        gracefully. Returns success status and optional error details.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/ShutdownServiceRequest"
+      responses:
+        "200":
+          description: Shutdown result
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/ShutdownServiceRespone"
+
+  /CDSRunTime.Sandbox.Contract.SandboxService/ValidateCodeSign:
+    post:
+      tags: [SandboxService]
+      operationId: SandboxService_ValidateCodeSign
+      summary: Validate code signing of a component
+      description: |
+        Unary RPC (MethodType 0). Validates the code signature of a
+        component identified by name, version, and type. Component content
+        is sent as repeated byte chunks.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/ComponentSignRequest"
+      responses:
+        "200":
+          description: Signing validation result
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/ComponentSignResponse"
+
+  # ---------------------------------------------------------------------------
+  # SandboxManagerService methods (2 methods)
+  # ---------------------------------------------------------------------------
+
+  /CDSRunTime.Sandbox.Contract.SandboxManagerService/Execute:
+    post:
+      tags: [SandboxManagerService]
+      operationId: SandboxManagerService_Execute
+      summary: Execute a plugin via the sandbox manager (bidirectional streaming)
+      description: |
+        Bidirectional streaming RPC (MethodType 3). Front-door entry point
+        that proxies Execute calls to individual sandbox worker containers.
+        Uses the same ExecuteRequest/ExecuteResponse message types as
+        SandboxService.Execute.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/ExecuteRequest"
+      responses:
+        "200":
+          description: Stream of execution results and callback requests
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/ExecuteResponse"
+
+  /CDSRunTime.Sandbox.Contract.SandboxManagerService/Ping:
+    post:
+      tags: [SandboxManagerService]
+      operationId: SandboxManagerService_Ping
+      summary: Health check the sandbox manager
+      description: |
+        Unary RPC (MethodType 0). Returns the manager service health status.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/PingRequest"
+      responses:
+        "200":
+          description: Service health status
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/PingResponse"
+
+components:
+  schemas:
+    # =========================================================================
+    # SidecarService message types
+    # =========================================================================
+
+    WorkerMetadataRequest:
+      type: object
+      description: "Request to get worker-assigned metadata"
+      properties:
+        workerGuid:
+          type: string
+          description: "Field 1: GUID identifying the worker instance"
+
+    WorkerMetadataResponse:
+      type: object
+      description: "Worker metadata including telemetry keys and throttle info"
+      properties:
+        workerMetadata:
+          type: string
+          description: "Field 1: JSON blob of worker metadata"
+        applicationInsightsKey:
+          type: string
+          description: "Field 2: Application Insights instrumentation key"
+        workerThrottleEndtime:
+          type: string
+          format: date-time
+          description: "Field 3: google.protobuf.Timestamp - throttle end time"
+
+    WorkerTelemetryRequest:
+      type: object
+      description: "Telemetry event from worker (bidirectional streaming)"
+      properties:
+        telemetryRequestType:
+          type: object
+          description: "oneof telemetry_request_type"
+          properties:
+            communicationRequest:
+              type: object
+              description: "Field 1: Communication telemetry request"
+            operationRequest:
+              type: object
+              description: "Field 2: Operation telemetry request"
+            traceRequest:
+              type: object
+              description: "Field 3: Trace telemetry request"
+
+    WorkerTelemetryResponse:
+      type: object
+      description: "Acknowledgement for telemetry stream (empty message)"
+
+    NamingServiceRequest:
+      type: object
+      description: "Request to set a naming service property"
+      properties:
+        propertyName:
+          type: string
+          enum: [mark_worker_deletion]
+          description: "Field 1: enum WorkerPropertyName"
+        propertValue:
+          type: string
+          enum: ["true"]
+          description: "Field 2: enum WorkerPropertyValue"
+        workerTerminationReason:
+          type: string
+          enum: [Idle, MaxLifetime]
+          description: "Field 3: enum WorkerTerminationReason"
+
+    NamingServiceResponse:
+      type: object
+      description: "Result of naming service property update"
+      properties:
+        success:
+          type: boolean
+          description: "Field 1: Whether the operation succeeded"
+        errorDetails:
+          type: string
+          description: "Field 2: Error details if the operation failed"
+
+    WorkerLoadRequest:
+      type: object
+      description: "Worker load report"
+      properties:
+        loadType:
+          type: object
+          description: "oneof load_type"
+          properties:
+            activeWorkerRequestCount:
+              type: integer
+              format: int32
+              description: "Field 1: Number of active requests"
+            activeWorkerLoad:
+              type: integer
+              format: int32
+              description: "Field 2: Numeric load metric"
+
+    WorkerLoadResponse:
+      type: object
+      description: "Empty acknowledgement for load report"
+
+    CreateProxyRequest:
+      type: object
+      description: "Request to create a network port proxy"
+      properties:
+        workerIp:
+          type: string
+          description: "Field 1: IP address of the worker requesting the proxy"
+
+    CreateProxyResponse:
+      type: object
+      description: "Result of port proxy creation"
+      properties:
+        status:
+          type: string
+          enum: [success, failed]
+          description: "Field 1: enum ProxyServiceRequestStatus"
+
+    MetricRequest:
+      type: object
+      description: "Custom metric report"
+      properties:
+        metricName:
+          type: string
+          description: "Field 1: Name of the metric"
+        value:
+          type: integer
+          format: int64
+          description: "Field 2: Metric value"
+        customDimensions:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Field 3: map<string, string> of custom dimensions"
+
+    MetricResponse:
+      type: object
+      description: "Empty acknowledgement for metric report"
+
+    ExtensionPackageRequest:
+      type: object
+      description: "Request to load an extension package"
+      properties:
+        extensionName:
+          type: string
+          description: "Field 1: Name of the extension"
+        extensionVersion:
+          type: string
+          description: "Field 2: Version of the extension"
+
+    ExtensionPackageResponse:
+      type: object
+      description: "Extension package load result"
+      properties:
+        responseData:
+          type: object
+          description: "oneof response_data"
+          properties:
+            extensionSuccess:
+              type: object
+              description: "Field 1: Successful extension load (ExtensionServiceParameters)"
+            extensionLoadFailure:
+              type: string
+              enum: [name_not_available, storage_access_error]
+              description: "Field 2: enum ExtensionLoadFailure"
+
+    BackgroundExtensionPackageRequest:
+      type: object
+      description: "Request to load a background extension package"
+      properties:
+        backgroundExtensionName:
+          type: string
+          description: "Field 1: Name of the background extension"
+
+    BackgroundExtensionPackageResponse:
+      type: object
+      description: "Background extension package load result"
+      properties:
+        responseData:
+          type: object
+          description: "oneof response_data"
+          properties:
+            extensionVersion:
+              type: string
+              description: "Field 1: Version string on success"
+            extensionLoadFailure:
+              type: string
+              enum: [name_not_available, storage_access_error]
+              description: "Field 2: enum ExtensionLoadFailure"
+
+    LoadDataverseExtensionAssemblyRequest:
+      type: object
+      description: "Request to stream a Dataverse extension assembly"
+      properties:
+        id:
+          type: string
+          description: "Field 1: Assembly identifier"
+        hashCode:
+          type: string
+          description: "Field 2: Expected hash code for integrity verification"
+
+    DataverseExtensionAssemblyResponse:
+      type: object
+      description: "Streamed assembly content chunk or failure"
+      properties:
+        responseData:
+          type: object
+          description: "oneof response_data"
+          properties:
+            content:
+              type: string
+              format: byte
+              description: "Field 1: bytes - Assembly content chunk"
+            extensionLoadFailure:
+              type: string
+              enum: [name_not_available, storage_access_error]
+              description: "Field 2: enum ExtensionLoadFailure"
+
+    LoadHostInjectionPackageRequest:
+      type: object
+      description: "Request to stream a host injection package (empty message)"
+
+    HostInjectionPackageResponse:
+      type: object
+      description: "Streamed host injection package content or failure"
+      properties:
+        responseData:
+          type: object
+          description: "oneof response_data"
+          properties:
+            content:
+              type: string
+              format: byte
+              description: "Field 1: bytes - Package content chunk"
+            extensionLoadFailure:
+              type: string
+              enum: [name_not_available, storage_access_error]
+              description: "Field 2: enum ExtensionLoadFailure"
+
+    ServiceParametersRequest:
+      type: object
+      description: "Request for service parameters (empty message)"
+
+    ServiceParametersResponse:
+      type: object
+      description: "Service parameters in one of three variants"
+      properties:
+        parameterData:
+          type: object
+          description: "oneof parameter_data"
+          properties:
+            extensionServiceParameters:
+              $ref: "#/components/schemas/ExtensionServiceParameters"
+              description: "Field 1"
+            backgroundExtensionServiceParameters:
+              $ref: "#/components/schemas/BackgroundExtensionServiceParameters"
+              description: "Field 2"
+            pluginServiceParameters:
+              $ref: "#/components/schemas/PluginServiceParameters"
+              description: "Field 3"
+
+    ExtensionServiceParameters:
+      type: object
+      description: "Parameters for extension services"
+      properties:
+        allowedAppId:
+          type: string
+          description: "Field 1: Allowed application ID"
+
+    BackgroundExtensionServiceParameters:
+      type: object
+      description: "Parameters for background extension services"
+      properties:
+        extensionName:
+          type: string
+          description: "Field 1: Extension name"
+        runtimeConfigJson:
+          type: string
+          description: "Field 2: Runtime configuration as JSON"
+
+    PluginServiceParameters:
+      type: object
+      description: "Parameters for plugin services"
+      properties:
+        allowedAppIds:
+          type: string
+          description: "Field 1: Comma-separated list of allowed app IDs"
+
+    ClusterEnvironmentRequest:
+      type: object
+      description: "Request for cluster environment settings (empty message)"
+
+    ClusterEnvironmentResponse:
+      type: object
+      description: "Cluster environment metadata"
+      properties:
+        environmentName:
+          type: string
+          description: "Field 1: Environment name"
+        clusterCategory:
+          type: string
+          description: "Field 2: Cluster category"
+        geoName:
+          type: string
+          description: "Field 3: Geographic region name"
+        clusterName:
+          type: string
+          description: "Field 4: Cluster name"
+        regionShortName:
+          type: string
+          description: "Field 5: Region short name (e.g., 'westus2')"
+        regionName:
+          type: string
+          description: "Field 6: Region full name"
+        clusterNumber:
+          type: string
+          description: "Field 7: Cluster number identifier"
+
+    GetCurrentInstanceCountRequest:
+      type: object
+      description: "Request for current instance count (empty message)"
+
+    GetCurrentInstanceCountResponse:
+      type: object
+      description: "Current number of worker instances"
+      properties:
+        instanceCount:
+          type: integer
+          format: int32
+          description: "Field 1: Number of active instances"
+
+    AccessTokenRequest:
+      type: object
+      description: "Request to acquire an OAuth access token"
+      properties:
+        resourceId:
+          type: string
+          description: "Field 1: Target resource identifier (e.g., https://graph.microsoft.com)"
+        tenantId:
+          type: string
+          description: "Field 2: Azure AD tenant ID"
+        appId:
+          type: string
+          description: "Field 3: Application (client) ID"
+        scope:
+          type: string
+          nullable: true
+          description: "Field 4: google.protobuf.StringValue wrapper - OAuth scope"
+
+    AccessTokenResponse:
+      type: object
+      description: "Access token result"
+      properties:
+        responseData:
+          type: object
+          description: "oneof response_data"
+          properties:
+            accessToken:
+              $ref: "#/components/schemas/ResourceAccessToken"
+              description: "Field 1: The acquired token and expiry"
+            errorDetails:
+              type: string
+              description: "Field 2: Error message if acquisition failed"
+
+    ResourceAccessToken:
+      type: object
+      description: "An OAuth access token with expiry"
+      properties:
+        accessToken:
+          type: string
+          description: "Field 1: The bearer token string"
+        expiryTime:
+          type: string
+          format: date-time
+          description: "Field 2: google.protobuf.Timestamp - token expiration"
+
+    GetCustomerIdentityTokenRequest:
+      type: object
+      description: "Request to acquire a customer identity token"
+      properties:
+        scopes:
+          type: array
+          items:
+            type: string
+          description: "Field 1: repeated string - OAuth scopes"
+
+    GetCustomerIdentityTokenResponse:
+      type: object
+      description: "Customer identity token result"
+      properties:
+        token:
+          type: string
+          description: "Field 1: The bearer token string"
+        expiration:
+          type: string
+          format: date-time
+          description: "Field 2: google.protobuf.Timestamp - token expiration"
+
+    OpenIdRequest:
+      type: object
+      description: "Request for OpenID signing keys (empty message)"
+
+    OpenIdResponse:
+      type: object
+      description: "OpenID Connect signing keys"
+      properties:
+        signingKeyJson:
+          type: string
+          description: "Field 1: JSON Web Key Set (JWKS) as a JSON string"
+
+    IGTokenValidationRequest:
+      type: object
+      description: "Request to check IG token validation (empty message)"
+
+    IGTokenValidationResponse:
+      type: object
+      description: "IG token validation enablement status"
+      properties:
+        isIGTokenValidationEnabled:
+          type: boolean
+          description: "Field 1: Whether IG token validation is enabled"
+
+    CrashEventDetail:
+      type: object
+      description: "Details of a crash event (used as both request and response for SendCrashEvent)"
+      properties:
+        timeStamp:
+          type: string
+          description: "Field 1: Crash timestamp as string"
+        crashType:
+          type: string
+          enum: [UnhandledExceptionInPluginCode]
+          description: "Field 2: enum CrashType"
+        crashDetails:
+          type: string
+          description: "Field 3: Detailed crash information / stack trace"
+
+    CrashEventRequest:
+      type: object
+      description: "Request to get last crash event (empty message)"
+
+    WorkerBusyRequest:
+      type: object
+      description: "Report that the worker is busy (empty message)"
+
+    WorkerBusyResponse:
+      type: object
+      description: "Expiry information for the busy worker"
+      properties:
+        expiryTime:
+          type: string
+          format: date-time
+          description: "Field 1: google.protobuf.Timestamp - request expiry"
+        idleExpiryTime:
+          type: string
+          format: date-time
+          description: "Field 2: google.protobuf.Timestamp - idle timeout expiry"
+        lifeExpiryTime:
+          type: string
+          format: date-time
+          description: "Field 3: google.protobuf.Timestamp - maximum lifetime expiry"
+
+    WorkerCompleteRequest:
+      type: object
+      description: "Report that the worker completed its request (empty message)"
+
+    WorkerCompleteResponse:
+      type: object
+      description: "Acknowledgement of completion (empty message)"
+
+    GetEnvironmentVariablesRequest:
+      type: object
+      description: "Request for environment variables (empty message)"
+
+    GetEnvironmentVariablesResponse:
+      type: object
+      description: "Environment variables available to the worker"
+      properties:
+        environmentVariables:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Field 1: map<string, string> of environment variable name-value pairs"
+
+    # =========================================================================
+    # SandboxService / SandboxManagerService message types
+    # =========================================================================
+
+    SandboxCallInfo:
+      type: object
+      description: "Call metadata including authentication nonce"
+      properties:
+        id:
+          type: string
+          description: "Field 11: Nonce/correlation ID used for authentication"
+
+    ExecuteRequest:
+      type: object
+      description: |
+        Plugin execution request. Contains initial call info and assembly
+        identification fields, plus a large oneof for callback response data
+        sent back to the worker during bidirectional streaming.
+      properties:
+        callInfo:
+          $ref: "#/components/schemas/SandboxCallInfo"
+          description: "Field 1: Call metadata with nonce"
+        pluginAssemblyId:
+          type: string
+          description: "Field 3: Plugin assembly GUID"
+        sourceHash:
+          type: integer
+          format: int32
+          description: "Field 4: Source hash of the assembly"
+        assemblyName:
+          type: string
+          description: "Field 5: Assembly name"
+        pluginTypeId:
+          type: string
+          description: "Field 6: Plugin type GUID"
+        pluginTypeName:
+          type: string
+          description: "Field 7: Fully qualified plugin type name"
+        returnTraceInfo:
+          type: boolean
+          description: "Field 11: Whether to return trace info"
+        earlyExecutionContextSerializedPropertiesPayload:
+          type: object
+          description: "Field 39: Early execution context serialized properties"
+        useCustomRequestParameterValueFromRequest:
+          type: boolean
+          description: "Field 40: Use custom request parameter from this request"
+        customRequestParameterValue:
+          type: string
+          description: "Field 41: Custom request parameter value"
+        pluginPublisherUniqueName:
+          type: string
+          description: "Field 42: Publisher unique name"
+        workerScaleProfile:
+          type: object
+          description: "Field 43: WorkerScaleProfile message"
+        pluginFullySigned:
+          type: boolean
+          description: "Field 44: Whether the plugin is fully signed"
+        pluginPublicKeyToken:
+          type: string
+          description: "Field 45: Plugin public key token"
+        nullablePluginConfiguration:
+          type: string
+          nullable: true
+          description: "Field 47: Plugin configuration (nullable wrapper)"
+        requestData:
+          type: object
+          description: |
+            oneof request_data - multiplexed callback responses sent from
+            manager to worker during streaming execution
+          properties:
+            executionContext:
+              type: string
+              description: "Field 2: Serialized SandboxPluginExecutionContext"
+            callbackResponseData:
+              type: object
+              description: "Field 13: CallbackResponse"
+            serviceBusPostResponse:
+              type: object
+              description: "Field 14: ServiceBusPostResponse"
+            retrieveEntityDataSourceResponse:
+              type: object
+              description: "Field 15: RetrieveEntityDataSourceResponse"
+            setConfigStoreDataResponse:
+              type: object
+              description: "Field 16: SetConfigStoreDataResponse"
+            setConfigStoreDataDictionaryResponse:
+              type: object
+              description: "Field 17: SetConfigStoreDataDictionaryResponse"
+            getConfigStoreDataResponse:
+              type: object
+              description: "Field 18: GetConfigStoreDataResponse"
+            getConfigStoreAllDataResponse:
+              type: object
+              description: "Field 19: GetConfigStoreAllDataResponse"
+            getConfigStoreDataByKeyNamesResponse:
+              type: object
+              description: "Field 20: GetConfigStoreDataByKeyNamesResponse"
+            acquireTokenResponse:
+              type: object
+              description: "Field 21: AcquireTokenResponse"
+            getSecretInVaultResponse:
+              type: object
+              description: "Field 22: GetSecretInVaultResponse"
+            getSecretResponse:
+              type: object
+              description: "Field 23: GetSecretResponse"
+            setSecretInVaultResponse:
+              type: object
+              description: "Field 24: SetSecretInVaultResponse"
+            setSecretResponse:
+              type: object
+              description: "Field 25: SetSecretResponse"
+            deleteSecretResponse:
+              type: object
+              description: "Field 26: DeleteSecretResponse"
+            deleteSecretInVaultResponse:
+              type: object
+              description: "Field 27: DeleteSecretInVaultResponse"
+            decryptResponse:
+              type: object
+              description: "Field 28: DecryptResponse"
+            encryptResponse:
+              type: object
+              description: "Field 29: EncryptResponse"
+            retrieveClaimAssertionsResponse:
+              type: object
+              description: "Field 30: RetrieveClaimAssertionsResponse"
+            exceptionData:
+              type: object
+              description: "Field 31: ExceptionExtensionData"
+            pluginAssemblyDataResponse:
+              type: object
+              description: "Field 32: PluginAssemblyResponse"
+            customActivityExecutionContext:
+              type: object
+              description: "Field 33: SandboxCustomActivityExecutionContext"
+            decryptInDefaultVaultResponse:
+              type: object
+              description: "Field 34: DecryptInDefaultVaultResponse"
+            encryptInDefaultVaultResponse:
+              type: object
+              description: "Field 35: EncryptInDefaultVaultResponse"
+            executionContextSimplePropertiesPayload:
+              type: object
+              description: "Field 36: ExecutionContextSimplePropertiesPayload"
+            executionContextSerializedPropertiesPayload:
+              type: object
+              description: "Field 37: ExecutionContextSerializedPropertiesPayload"
+            customActivityExecutionContextSimplePropertiesPayload:
+              type: object
+              description: "Field 38: CustomActivityExecutionContextSimplePropertiesPayload"
+            onBehalfOfTokenServiceProviderAcquireTokenResponse:
+              type: object
+              description: "Field 52: OnBehalfOfTokenServiceProviderAcquireTokenResponse"
+            managedIdentityServiceProviderAcquireTokenResponse:
+              type: object
+              description: "Field 53: ManagedIdentityServiceProviderAcquireTokenResponse"
+            managedIdentityServiceProviderAcquireTokenFromTenantResponse:
+              type: object
+              description: "Field 54: ManagedIdentityServiceProviderAcquireTokenFromTenantResponse"
+            executeScalarResponse:
+              type: object
+              description: "Field 56: ExecuteScalarResponse"
+            executeNonQueryWithResultResponse:
+              type: object
+              description: "Field 57: ExecuteNonQueryWithResultResponse"
+            executeInSolutionResponse:
+              type: object
+              description: "Field 58: ExecuteInSolutionResponse"
+            pluginPackageManagedIdentityServiceProviderAcquireTokenResponse:
+              type: object
+              description: "Field 70: PluginPackageManagedIdentityServiceProviderAcquireTokenResponse"
+            pluginPackageManagedIdentityServiceProviderAcquireTokenFromTenantResponse:
+              type: object
+              description: "Field 71: PluginPackageManagedIdentityServiceProviderAcquireTokenFromTenantResponse"
+            fcsResponse:
+              type: object
+              description: "Field 72: FCSResponse (Feature Control Settings)"
+            powerFxConnectorServiceResponse:
+              type: object
+              description: "Field 73: PowerFxConnectorServiceResponse"
+            submitJobsMessageResponse:
+              type: object
+              description: "Field 74: SubmitJobsMessageResponse"
+            outputTokenStreamEmitTokensResponse:
+              type: object
+              description: "Field 75: OutputTokenStreamEmitTokensResponse"
+            outputTokenStreamFlushResponse:
+              type: object
+              description: "Field 76: OutputTokenStreamFlushResponse"
+            outputTokenStreamEmitBufferResponse:
+              type: object
+              description: "Field 77: OutputTokenStreamEmitBufferResponse"
+            outputTokenStreamSetOutputResponseParameterResponse:
+              type: object
+              description: "Field 78: OutputTokenStreamSetOutputResponseParameterResponse"
+            getServiceEndpointAuthResponse:
+              type: object
+              description: "Field 79: GetServiceEndpointAuthResponse"
+            dvPlatformConfigResponse:
+              type: object
+              description: "Field 80: DVPlatformConfigResponse"
+
+    ExecuteResponse:
+      type: object
+      description: |
+        Plugin execution response. Contains execution result context, trace
+        info, and a large oneof for callback requests sent from worker to
+        manager during bidirectional streaming.
+      properties:
+        traceInfo:
+          type: string
+          description: "Field 5: Plugin trace log output"
+        frameworkContext:
+          type: string
+          description: "Field 6: Serialized framework context"
+        hostExecutionTime:
+          type: object
+          description: "Field 29: HostExecutionTime message"
+        isNetworkIsolatedExecution:
+          type: boolean
+          description: "Field 38: Whether this was a network-isolated execution"
+        responseData:
+          type: object
+          description: |
+            oneof response_data - multiplexed callback requests and terminal
+            responses sent from worker to manager during streaming execution
+          properties:
+            executionContext:
+              type: string
+              description: "Field 1: Serialized SandboxPluginExecutionContext (final result)"
+            callbackRequestData:
+              type: object
+              description: "Field 4: CallbackRequest"
+            serviceBusRequest:
+              type: object
+              description: "Field 7: ServiceBusRequest"
+            retrieveEntityDataSourceRequest:
+              type: object
+              description: "Field 8: RetrieveEntityDataSourceRequest"
+            setConfigStoreDataRequest:
+              type: object
+              description: "Field 9: SetConfigStoreDataRequest"
+            setConfigStoreDataDictionaryRequest:
+              type: object
+              description: "Field 10: SetConfigStoreDataDictionaryRequest"
+            getConfigStoreDataRequest:
+              type: object
+              description: "Field 11: GetConfigStoreDataRequest"
+            getConfigStoreAllDataRequest:
+              type: object
+              description: "Field 12: GetConfigStoreAllDataRequest"
+            getConfigStoreDataByKeyNamesRequest:
+              type: object
+              description: "Field 13: GetConfigStoreDataByKeyNamesRequest"
+            acquireTokenRequest:
+              type: object
+              description: "Field 14: AcquireTokenRequest"
+            getSecretInVaultRequest:
+              type: object
+              description: "Field 15: GetSecretInVaultRequest"
+            getSecretRequest:
+              type: object
+              description: "Field 16: GetSecretRequest"
+            setSecretRequestInVaultRequest:
+              type: object
+              description: "Field 17: SetSecretInVaultRequest"
+            setSecretRequest:
+              type: object
+              description: "Field 18: SetSecretRequest"
+            deleteSecretRequest:
+              type: object
+              description: "Field 19: DeleteSecretRequest"
+            deleteSecretInVaultRequest:
+              type: object
+              description: "Field 20: DeleteSecretInVaultRequest"
+            decryptRequest:
+              type: object
+              description: "Field 21: DecryptRequest"
+            encryptRequest:
+              type: object
+              description: "Field 22: EncryptRequest"
+            retrieveClaimAssertionsRequest:
+              type: object
+              description: "Field 23: RetrieveClaimAssertionsRequest"
+            pluginAssemblyDataRequest:
+              type: object
+              description: "Field 24: PluginAssemblyRequest"
+            customActivityExecutionContext:
+              type: object
+              description: "Field 25: SandboxCustomActivityExecutionContext"
+            decryptInDefaultVaultRequest:
+              type: object
+              description: "Field 26: DecryptInDefaultVaultRequest"
+            encryptInDefaultVaultRequest:
+              type: object
+              description: "Field 27: EncryptInDefaultVaultRequest"
+            executionContextSecondaryDataRequest:
+              type: object
+              description: "Field 28: ExecutionContextSecondaryDataRequest"
+            allocationResponse:
+              type: object
+              description: "Field 30: AllocationResponse (terminal)"
+            executionFailureResponse:
+              type: object
+              description: "Field 31: ExecutionFailureResponse (terminal)"
+            onBehalfOfTokenServiceProviderAcquireTokenRequest:
+              type: object
+              description: "Field 32: OnBehalfOfTokenServiceProviderAcquireTokenRequest"
+            managedIdentityServiceProviderAcquireTokenRequest:
+              type: object
+              description: "Field 33: ManagedIdentityServiceProviderAcquireTokenRequest"
+            managedIdentityServiceProviderAcquireTokenFromTenantRequest:
+              type: object
+              description: "Field 34: ManagedIdentityServiceProviderAcquireTokenFromTenantRequest"
+            executeScalarRequest:
+              type: object
+              description: "Field 35: ExecuteScalarRequest"
+            executeNonQueryWithResultRequest:
+              type: object
+              description: "Field 36: ExecuteNonQueryWithResultRequest"
+            executeInSolutionRequest:
+              type: object
+              description: "Field 37: ExecuteInSolutionRequest"
+            pluginPackageManagedIdentityServiceProviderAcquireTokenRequest:
+              type: object
+              description: "Field 40: PluginPackageManagedIdentityServiceProviderAcquireTokenRequest"
+            pluginPackageManagedIdentityServiceProviderAcquireTokenFromTenantRequest:
+              type: object
+              description: "Field 41: PluginPackageManagedIdentityServiceProviderAcquireTokenFromTenantRequest"
+            fcsRequest:
+              type: object
+              description: "Field 42: FCSRequest (Feature Control Settings)"
+            powerFxConnectorServiceRequest:
+              type: object
+              description: "Field 43: PowerFxConnectorServiceRequest"
+            submitJobsMessageRequest:
+              type: object
+              description: "Field 44: SubmitJobsMessageRequest"
+            submitJobsMessageWithoutSaveRequest:
+              type: object
+              description: "Field 45: SubmitJobsMessageWithoutSaveRequest"
+            submitJobsMessageWithRootContextRequest:
+              type: object
+              description: "Field 46: SubmitJobsMessageWithRootContextRequest"
+            outputTokenStreamEmitTokensRequest:
+              type: object
+              description: "Field 47: OutputTokenStreamEmitTokensRequest"
+            outputTokenStreamFlushRequest:
+              type: object
+              description: "Field 48: OutputTokenStreamFlushRequest"
+            outputTokenStreamEmitBufferRequest:
+              type: object
+              description: "Field 49: OutputTokenStreamEmitBufferRequest"
+            outputTokenStreamSetOutputResponseParameterRequest:
+              type: object
+              description: "Field 50: OutputTokenStreamSetOutputResponseParameterRequest"
+            getServiceEndpointAuthRequest:
+              type: object
+              description: "Field 51: GetServiceEndpointAuthRequest"
+            dvPlatformConfigRequest:
+              type: object
+              description: "Field 52: DVPlatformConfigRequest"
+
+    PingRequest:
+      type: object
+      description: "Health check request (empty message)"
+
+    PingResponse:
+      type: object
+      description: "Health check response with service status"
+      properties:
+        status:
+          type: string
+          enum: [HEALTHY, UNHEALTHY, UNKNOWN]
+          description: "Field 1: enum Types.ServiceStatus"
+
+    ShutdownServiceRequest:
+      type: object
+      description: "Shutdown command (empty message)"
+
+    ShutdownServiceRespone:
+      type: object
+      description: "Shutdown result (note: original protobuf has typo 'Respone')"
+      properties:
+        shutdownSuccess:
+          type: boolean
+          description: "Field 1: Whether shutdown was successful"
+        errorDetails:
+          type: string
+          description: "Field 2: Error details if shutdown failed"
+
+    ComponentSignRequest:
+      type: object
+      description: "Code signing validation request"
+      properties:
+        componentName:
+          type: string
+          description: "Field 1: Name of the component to validate"
+        componentVersion:
+          type: string
+          description: "Field 2: Version of the component"
+        componentType:
+          type: string
+          description: "Field 3: Type of the component"
+        contentChunks:
+          type: array
+          items:
+            type: string
+            format: byte
+          description: "Field 4: repeated bytes - component content in chunks"
+        verifyCertSignatureOnly:
+          type: boolean
+          description: "Field 5: Only verify the certificate signature (skip full validation)"
+
+    ComponentSignResponse:
+      type: object
+      description: "Code signing validation result"
+      properties:
+        codeSignInfo:
+          $ref: "#/components/schemas/CodeSignInfo"
+          description: "Field 3: Code signing metadata (always present if signed)"
+        signedResponse:
+          type: object
+          description: "oneof signed_response"
+          properties:
+            isSigned:
+              type: boolean
+              description: "Field 1: Whether the component is signed"
+            codeSignErrorResponse:
+              $ref: "#/components/schemas/CodeSignErrorResponse"
+              description: "Field 2: Error details if signing validation failed"
+
+    CodeSignInfo:
+      type: object
+      description: "Code signing certificate information"
+
+    CodeSignErrorResponse:
+      type: object
+      description: "Error response from code signing validation"

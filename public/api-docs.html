@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plex Explorer — gRPC Docs</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+<style>
+  body { margin: 0; background: #fafafa; }
+  #header {
+    background: #141414;
+    border-bottom: 2px solid #eaa307;
+    padding: 12px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #header h1 {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 18px;
+    color: #eaa307;
+    letter-spacing: 1px;
+    margin: 0;
+  }
+  #header a {
+    color: #999;
+    text-decoration: none;
+    font-family: sans-serif;
+    font-size: 13px;
+    border: 1px solid #3a3a3a;
+    padding: 6px 14px;
+    border-radius: 3px;
+    transition: all 0.2s;
+  }
+  #header a:hover {
+    border-color: #eaa307;
+    color: #f3f3f3;
+  }
+  /* Clean up Swagger UI */
+  .swagger-ui .topbar { display: none; }
+  .swagger-ui .scheme-container { display: none; }  /* hide server/scheme selector */
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="header">
+  <div style="display:flex;align-items:baseline">
+    <h1>PLEX EXPLORER</h1>
+    <span style="font-size:12px;color:#505050;margin-left:14px;font-family:'Source Sans 3',sans-serif;">Reverse Engineered from 216 Decompiled DLLs (1.1M lines of C#)</span>
+  </div>
+  <a href="index.html">&larr; Back to Explorer</a>
+</div>
+
+<div id="swagger-ui"></div>
+
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+SwaggerUIBundle({
+  url: 'openapi.yaml',
+  dom_id: '#swagger-ui',
+  deepLinking: true,
+  presets: [SwaggerUIBundle.presets.apis],
+  layout: 'BaseLayout',
+  defaultModelsExpandDepth: 1,
+  docExpansion: 'list',
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plex Explorer - Dataverse Plugin Sandbox Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700&family=Source+Sans+3:wght@400;600&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--a:#eaa307;--bg:#131313;--p:#0c181d;--t:#e4e4e4;--td:#8a8a8a;--tm:#505050;--b:#282828;--bl:#3a3a3a;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Source Sans 3',sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;}
+header{width:100%;background:#101010;border-bottom:1px solid var(--b);padding:12px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+header h1{font-family:'Exo 2',sans-serif;font-size:20px;font-weight:700;color:var(--a);letter-spacing:1.5px;}
+header .sub{font-size:15px;color:var(--tm);margin-left:14px;}
+header a{font-size:15px;color:var(--td);text-decoration:none;border:1px solid var(--b);padding:4px 12px;border-radius:3px;transition:border-color .2s,color .2s;}
+header a:hover{border-color:var(--a);color:var(--t);}
+.info-btn{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;margin-left:12px;align-self:center;flex-shrink:0;border:1px solid var(--bl);border-radius:50%;color:var(--td);font-family:Georgia,serif;font-size:15px;font-weight:700;font-style:italic;line-height:1;cursor:pointer;user-select:none;transition:border-color .2s,color .2s;}
+.info-btn:hover{border-color:var(--a);color:var(--a);}
+#wrap{max-width:1375px;width:100%;padding:10px 20px 40px;}
+#hint{text-align:center;color:var(--tm);font-size:16px;padding:4px 0 16px;}
+#hint b{color:var(--td);font-weight:400;}
+@keyframes down{to{stroke-dashoffset:-20;}}
+@keyframes up{to{stroke-dashoffset:20;}}
+.flow-down{animation:down 1.5s linear infinite;}
+.flow-up{animation:up 1.2s linear infinite;}
+
+/* Clickable hover effects */
+.clickable{cursor:pointer;transition:opacity .2s;}
+.clickable:hover rect{stroke:#eaa307 !important;stroke-width:1.5 !important;transition:stroke .15s,stroke-width .15s;}
+.user-link:hover rect{stroke:transparent !important;stroke-width:0 !important;}
+.user-link:hover text{text-decoration:underline;fill:#eaa307 !important;}
+.clickable:hover text{transition:fill .15s;}
+.arrow-hit{cursor:pointer;fill:transparent;stroke:transparent;}
+.arrow-hit:hover ~ .arrow-label text{fill:#eaa307 !important;}
+
+/* Dimming */
+.dim-all .clickable{opacity:.45;transition:opacity .3s;}
+.dim-all .clickable.active{opacity:1;}
+.dim-all .arrow-group{opacity:.3;transition:opacity .3s;}
+.dim-all .arrow-group.active{opacity:1;}
+
+/* Sidebar */
+#sidebar{position:fixed;top:48px;bottom:0;width:520px;background:rgba(12,24,29,.97);overflow-y:auto;z-index:10;transition:transform .3s ease;pointer-events:none;}
+#sidebar.open{pointer-events:auto;}
+#sidebar.side-right{right:0;border-left:1px solid var(--bl);box-shadow:-4px 0 24px rgba(0,0,0,.6);transform:translateX(100%);}
+#sidebar.side-left{left:0;border-right:1px solid var(--bl);box-shadow:4px 0 24px rgba(0,0,0,.6);transform:translateX(-100%);}
+#sidebar.side-right.open{transform:translateX(0);}
+#sidebar.side-left.open{transform:translateX(0);}
+.sb-head{padding:20px 24px 16px;border-bottom:1px solid var(--b);}
+.sb-head .close{float:right;color:var(--tm);cursor:pointer;font-size:22px;line-height:1;transition:color .15s;}
+.sb-head .close:hover{color:var(--t);}
+.sb-head h2{font-family:'Exo 2',sans-serif;font-size:19px;font-weight:700;color:var(--a);letter-spacing:1px;margin-bottom:2px;}
+.sb-head .sub{font-family:'Source Code Pro',monospace;font-size:15px;color:var(--td);}
+.sb-section{padding:16px 24px;border-bottom:1px solid #1a1a1a;}
+.sb-section h3{font-family:'Exo 2',sans-serif;font-size:14px;font-weight:600;color:var(--a);letter-spacing:1.5px;margin-bottom:10px;text-transform:uppercase;}
+.sb-section table{width:100%;border-collapse:collapse;font-size:16px;}
+.sb-section td{padding:5px 0;vertical-align:top;}
+.sb-section td:first-child{color:var(--td);font-family:'Source Code Pro',monospace;font-size:15px;white-space:nowrap;padding-right:12px;width:1%;}
+.sb-section td:last-child{color:var(--t);}
+.sb-section ul{list-style:none;font-size:16px;}
+.sb-section li{display:flex;align-items:baseline;padding:3px 0;color:var(--t);}
+.sb-section li::before{content:"";flex-shrink:0;width:4px;height:4px;background:var(--tm);border-radius:50%;margin-right:8px;}
+.sb-section a{color:var(--a);text-decoration:none;border-bottom:1px solid rgba(234,163,7,.35);transition:border-color .2s;}
+.sb-section a:hover{border-color:var(--a);}
+.troopers-link{display:inline-flex;}
+.troopers-link img{opacity:.6;transition:opacity .2s;}
+.troopers-link:hover img{opacity:1;}
+.mono{font-family:'Source Code Pro',monospace;font-size:15px;}
+.dim{color:var(--td);}
+.ep-table{width:100%;border-collapse:collapse;font-size:15px;font-family:'Source Code Pro',monospace;}
+.ep-table th{text-align:left;color:var(--tm);font-weight:400;padding:4px 8px 4px 0;border-bottom:1px solid var(--b);}
+.ep-table td{padding:5px 8px 5px 0;border-bottom:1px solid #1a1a1a;color:var(--t);}
+.auth-none{color:#e05252;}.auth-ok{color:#4aba7a;}
+.tag{display:inline-block;font-size:12px;font-family:'Source Code Pro',monospace;padding:1px 6px;border-radius:2px;margin-left:6px;}
+.tag-warn{background:#3a2a0a;color:#eaa307;border:1px solid #5a4010;}
+.tag-ok{background:#0a2a1a;color:#4aba7a;border:1px solid #1a4a2a;}
+.tag-red{background:#2a0a0a;color:#e05252;border:1px solid #4a1a1a;}
+.tag-blue{background:#0a1a2a;color:#5588cc;border:1px solid #1a3a5a;}
+.svc-row{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #1a1a1a;}
+.svc-name{font-family:'Source Code Pro',monospace;font-size:15px;flex:1;}
+.env-row{display:flex;padding:4px 0;border-bottom:1px solid #1a1a1a;font-size:15px;font-family:'Source Code Pro',monospace;}
+.env-key{color:var(--td);min-width:140px;flex-shrink:0;}
+.env-val{color:var(--t);word-break:break-all;}
+.priv-row{display:flex;align-items:center;padding:5px 0;border-bottom:1px solid #1a1a1a;font-size:15px;}
+.priv-check{color:#4aba7a;margin-right:8px;font-size:18px;flex-shrink:0;}
+.priv-name{font-family:'Source Code Pro',monospace;flex:1;min-width:0;}
+.priv-note{color:var(--td);font-size:14px;margin-left:8px;flex-shrink:0;}
+.gate-table{width:100%;border-collapse:collapse;font-size:15px;font-family:'Source Code Pro',monospace;}
+.gate-table th{text-align:left;color:var(--tm);font-weight:400;padding:4px 8px 4px 0;border-bottom:1px solid var(--b);}
+.gate-table td{padding:6px 8px 6px 0;border-bottom:1px solid #1a1a1a;color:var(--t);}
+.gate-table .gated{color:#4aba7a;}.gate-table .open{color:#eaa307;}
+
+/* Plugin state: callback elements */
+#callbacks{opacity:0;pointer-events:none;transition:opacity .4s ease .15s;}
+#callback-arrow{opacity:0;pointer-events:none;transition:opacity .4s ease .2s;}
+.state-plugin #callbacks{opacity:1;pointer-events:auto;}
+.state-plugin #callback-arrow{opacity:1;}
+
+/* Hyper-V boundary animation */
+#hyperv-default,#hyperv-label-default{transition:opacity .3s ease;pointer-events:auto;}
+#hyperv-expanded,#hyperv-label-expanded{opacity:0;transition:opacity .3s ease;pointer-events:none;}
+.state-plugin #hyperv-default,.state-plugin #hyperv-label-default{opacity:0;pointer-events:none;}
+.state-plugin #hyperv-expanded,.state-plugin #hyperv-label-expanded{opacity:1;pointer-events:auto;}
+/* Hyper-V boundary clickable zone */
+.dim-all .hyperv-zone{opacity:1;}
+.hyperv-zone:hover rect{opacity:.6 !important;stroke:#eaa307 !important;}
+.hyperv-zone:hover text{opacity:.85 !important;}
+.hyperv-sel #hyperv-default{opacity:.75;}
+.hyperv-sel #hyperv-label-default{opacity:.95;}
+
+/* Worker shift for plugin state */
+#worker-group{transition:transform .4s ease;}
+.state-plugin #worker-group{transform:translateX(110px);}
+
+/* Mobile: full-width sidebar, suppress plugin diagram expansion */
+@media(max-width:768px){
+  #sidebar{width:100%;}
+  #sidebar.side-right{right:0;}
+  #sidebar.side-left{left:0;}
+  .state-plugin #worker-group{transform:none;}
+  .state-plugin #hyperv-default,.state-plugin #hyperv-label-default{opacity:1;pointer-events:auto;}
+  .state-plugin #hyperv-expanded,.state-plugin #hyperv-label-expanded{opacity:0;pointer-events:none;}
+  .state-plugin #callbacks{opacity:0;pointer-events:none;}
+  .state-plugin #callback-arrow{opacity:0;}
+  header .sub{display:none;}
+  header h1{white-space:nowrap;}
+}
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:baseline">
+    <h1>PLEX EXPLORER</h1>
+    <span class="info-btn" title="About this project" aria-label="About this project" onclick="event.stopPropagation();setState('about')">i</span>
+  </div>
+  <a href="api-docs.html">gRPC Docs</a>
+</header>
+
+<div id="wrap">
+<svg id="d" viewBox="0 0 960 575" width="100%">
+  <defs>
+    <filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#eaa307" flood-opacity=".5"/></filter>
+  </defs>
+
+  <!-- PLATFORM -->
+  <g id="el-platform" class="clickable" data-target="platform">
+    <rect x="240" y="24" width="400" height="58" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+    <text x="440" y="50" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="17" fill="#e4e4e4">PLATFORM</text>
+    <text x="440" y="67" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">Dataverse Application Servers</text>
+  </g>
+
+  <!-- Arrow P-G -->
+  <g id="el-arrow-pg" class="arrow-group">
+    <rect x="425" y="82" width="50" height="57" class="arrow-hit" data-target="arrow-pg"/>
+    <line class="flow-down" x1="440" y1="82" x2="440" y2="132" stroke="#505050" stroke-width="1.3" stroke-dasharray="6 4"/>
+    <polygon points="434,128 440,139 446,128" fill="#505050"/>
+    <text x="458" y="105" font-family="'Source Code Pro',monospace" font-size="12" fill="#eaa307" font-weight="500">gRPC</text>
+    <text x="458" y="119" font-family="'Source Sans 3',sans-serif" font-size="11" fill="#8a8a8a">JWT auth</text>
+  </g>
+
+  <!-- GATEWAY -->
+  <g id="el-gateway" class="clickable" data-target="gateway">
+    <rect x="240" y="139" width="400" height="58" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+    <text x="440" y="165" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="17" fill="#e4e4e4">GATEWAY</text>
+    <text x="440" y="183" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">SandboxManagerService :443</text>
+  </g>
+
+  <!-- Arrow G-W -->
+  <g id="el-arrow-gw" class="arrow-group">
+    <rect x="425" y="197" width="50" height="63" class="arrow-hit" data-target="arrow-gw"/>
+    <line class="flow-down" x1="440" y1="197" x2="440" y2="255" stroke="#505050" stroke-width="1.3" stroke-dasharray="6 4"/>
+    <polygon points="434,251 440,262 446,251" fill="#505050"/>
+    <text x="458" y="222" font-family="'Source Code Pro',monospace" font-size="12" fill="#eaa307" font-weight="500">gRPC</text>
+    <text x="458" y="236" font-family="'Source Sans 3',sans-serif" font-size="11" fill="#8a8a8a">Nonce auth</text>
+  </g>
+
+  <!-- HYPER-V BOUNDARY (default) -->
+  <g class="clickable hyperv-zone" data-target="hyperv">
+    <rect id="hyperv-default" x="225" y="242" width="430" height="322" rx="5" fill="none" stroke="#eaa307" stroke-width=".8" stroke-dasharray="8 5" opacity=".3"/>
+    <text id="hyperv-label-default" x="240" y="263" font-family="'Source Code Pro',monospace" font-size="10" fill="#eaa307" opacity=".5" letter-spacing="1.5px">HYPER-V BOUNDARY</text>
+  </g>
+
+  <!-- HYPER-V BOUNDARY (expanded for plugin state, hidden by default) -->
+  <g class="clickable hyperv-zone" data-target="hyperv">
+    <rect id="hyperv-expanded" x="15" y="242" width="750" height="322" rx="5" fill="none" stroke="#eaa307" stroke-width=".8" stroke-dasharray="8 5" opacity=".3"/>
+    <text id="hyperv-label-expanded" x="30" y="263" font-family="'Source Code Pro',monospace" font-size="10" fill="#eaa307" opacity=".5" letter-spacing="1.5px">HYPER-V BOUNDARY</text>
+  </g>
+
+  <!-- CALLBACK BOXES (hidden by default, shown in plugin state) -->
+  <g id="callbacks">
+    <rect x="25" y="285" width="230" height="26" rx="3" fill="#0c181d" stroke="#8a8a8a" stroke-width="1"/>
+    <text x="37" y="302" font-family="'Source Code Pro',monospace" font-size="10.5" fill="#8a8a8a">SandboxCallbackService</text>
+    <text x="250" y="302" text-anchor="end" font-family="'Source Sans 3',sans-serif" font-size="9.5" fill="#505050">chokepoint</text>
+
+    <rect x="25" y="317" width="230" height="26" rx="3" fill="#0c181d" stroke="#e05252" stroke-width="1"/>
+    <text x="37" y="334" font-family="'Source Code Pro',monospace" font-size="10.5" fill="#e05252">IAcquireToken</text>
+    <text x="250" y="334" text-anchor="end" font-family="'Source Sans 3',sans-serif" font-size="9.5" fill="#505050">identity-gated</text>
+
+    <rect x="25" y="349" width="230" height="26" rx="3" fill="#0c181d" stroke="#5588cc" stroke-width="1"/>
+    <text x="37" y="366" font-family="'Source Code Pro',monospace" font-size="10.5" fill="#5588cc">ITracingService</text>
+    <text x="250" y="366" text-anchor="end" font-family="'Source Sans 3',sans-serif" font-size="9.5" fill="#505050">worker-local</text>
+
+    <rect x="25" y="381" width="230" height="26" rx="3" fill="#0c181d" stroke="#4aba7a" stroke-width="1"/>
+    <text x="37" y="398" font-family="'Source Code Pro',monospace" font-size="10.5" fill="#4aba7a">IKeyVaultClient</text>
+    <text x="250" y="398" text-anchor="end" font-family="'Source Sans 3',sans-serif" font-size="9.5" fill="#505050">unrestricted</text>
+
+    <rect x="25" y="413" width="230" height="26" rx="3" fill="none" stroke="#333" stroke-width=".7" stroke-dasharray="3 2"/>
+    <text x="140" y="430" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#555">...</text>
+
+    <!-- Fan arrows Plugin A (at x=430 after 110px shift) to callbacks (right edge x=255) -->
+    <line x1="430" y1="353" x2="268" y2="302" stroke="#eaa307" stroke-width="1" stroke-dasharray="4 3" opacity=".5"/>
+    <polygon points="257,298 268,296 265,307" fill="#eaa307" opacity=".6"/>
+    <line x1="430" y1="353" x2="268" y2="332" stroke="#eaa307" stroke-width="1" stroke-dasharray="4 3" opacity=".5"/>
+    <polygon points="257,330 268,326 268,336" fill="#eaa307" opacity=".6"/>
+    <line x1="430" y1="353" x2="268" y2="363" stroke="#eaa307" stroke-width="1" stroke-dasharray="4 3" opacity=".5"/>
+    <polygon points="257,362 268,357 268,367" fill="#eaa307" opacity=".6"/>
+    <line x1="430" y1="353" x2="268" y2="393" stroke="#eaa307" stroke-width="1" stroke-dasharray="4 3" opacity=".5"/>
+    <polygon points="257,394 267,387 269,397" fill="#eaa307" opacity=".6"/>
+    <line x1="430" y1="353" x2="267" y2="423" stroke="#eaa307" stroke-width="1" stroke-dasharray="4 3" opacity=".5"/>
+    <polygon points="257,426 265,417 269,427" fill="#eaa307" opacity=".6"/>
+  </g>
+
+  <!-- Callback arrow to Platform -->
+  <g id="callback-arrow">
+    <!-- Callback arrow: IOrganizationService to Gateway left middle (240, 168) -->
+    <path class="flow-up" d="M 140 285 C 140 200, 195 168, 226 168" fill="none" stroke="#4aba7a" stroke-width="1.5" stroke-dasharray="5 3" opacity=".65"/>
+    <polygon points="240,168 226,161 226,175" fill="#4aba7a" opacity=".8"/>
+    <text x="75" y="220" font-family="'Source Code Pro',monospace" font-size="10" fill="#606060">callback</text>
+
+    <!-- Relay arrow: Gateway top to Platform bottom -->
+    <line class="flow-up" x1="420" y1="139" x2="420" y2="92" stroke="#4aba7a" stroke-width="1.5" stroke-dasharray="5 3" opacity=".55"/>
+    <polygon points="414,92 420,82 426,92" fill="#4aba7a" opacity=".7"/>
+    <text x="400" y="118" text-anchor="end" font-family="'Source Code Pro',monospace" font-size="9" fill="#606060">relay</text>
+  </g>
+
+  <!-- WORKER -->
+  <g id="worker-group">
+    <g id="el-worker" class="clickable" data-target="worker" style="pointer-events:bounding-box">
+      <rect x="240" y="272" width="400" height="162" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+      <text x="440" y="300" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="17" fill="#e4e4e4">WORKER</text>
+      <text x="440" y="318" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">SandboxWorker.exe :9000</text>
+    </g>
+
+    <g id="el-plugin" class="clickable" data-target="plugin">
+      <rect x="320" y="334" width="80" height="26" rx="2" fill="transparent" stroke="#333" stroke-width=".7"/>
+      <text x="360" y="351" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="9.5" fill="#666">Plugin A</text>
+    </g>
+    <g class="clickable" data-target="plugin">
+      <rect x="410" y="334" width="80" height="26" rx="2" fill="transparent" stroke="#333" stroke-width=".7"/>
+      <text x="450" y="351" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="9.5" fill="#666">Plugin B</text>
+    </g>
+    <g class="clickable" data-target="plugin">
+      <rect x="500" y="334" width="80" height="26" rx="2" fill="transparent" stroke="#333" stroke-width=".7"/>
+      <text x="540" y="351" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="9.5" fill="#666">Plugin ...</text>
+    </g>
+
+    <g id="el-user" class="clickable user-link" data-target="user">
+      <rect x="320" y="374" width="240" height="24" rx="3" fill="transparent" stroke="transparent" stroke-width="0"/>
+      <text x="440" y="391" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#eaa307">User: ContainerAdministrator</text>
+    </g>
+  </g>
+
+  <!-- Arrow W-S (vertical, inside Hyper-V boundary) -->
+  <g id="el-arrow-ws" class="arrow-group">
+    <rect x="425" y="429" width="50" height="57" class="arrow-hit" data-target="arrow-ws"/>
+    <line class="flow-down" x1="440" y1="434" x2="440" y2="481" stroke="#505050" stroke-width="1.3" stroke-dasharray="6 4"/>
+    <polygon points="434,477 440,488 446,477" fill="#505050"/>
+    <text x="458" y="456" font-family="'Source Code Pro',monospace" font-size="12" fill="#eaa307" font-weight="500">gRPC</text>
+    <text x="458" y="470" font-family="'Source Sans 3',sans-serif" font-size="11" fill="#8a8a8a">No auth</text>
+  </g>
+
+  <!-- SIDECAR (below worker, centered) -->
+  <g id="el-sidecar" class="clickable" data-target="sidecar">
+    <rect x="240" y="491" width="400" height="58" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+    <text x="440" y="517" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="600" font-size="17" fill="#e4e4e4">SIDECAR</text>
+    <text x="440" y="535" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">SidecarService</text>
+  </g>
+</svg>
+<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 0 0;color:var(--tm);font-size:15px;">
+  <span>Created by Simon Maxwell-Stewart for</span>
+  <a href="https://troopers.de/" target="_blank" rel="noopener" class="troopers-link" aria-label="Troopers"><img src="troopers-logo.png" alt="Troopers" style="height:18px;"></a>
+</div>
+</div>
+
+<div id="sidebar" class="side-right"></div>
+
+<script>
+const sidebar = document.getElementById('sidebar');
+const svg = document.getElementById('d');
+let currentState = null;
+
+const CONTENT = {
+about: {
+  side: 'right',
+  head: '<h2>PLEX EXPLORER</h2><span class="sub">Dataverse plugin sandbox, aka Plex</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.6">A learning aid for security researchers explaining Microsoft's Dataverse plugin sandbox architecture, aka Plex.<br><br>Dataverse is the data layer behind Power Platform (Copilot Studio, Power Apps, Power Automate, etc.) and Dynamics 365. Customers extend it with plugins, custom .NET code triggered by data events like create or update. To stop untrusted third-party code from reaching the platform or other tenants, each plugin runs inside a sandbox: a .NET worker process in a Hyper-V isolated container. Microsoft runs these sandboxes at scale across Azure as part of the hosted Dataverse service. Plex is the internal name for the system that manages and executes them.</div></div>
+<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.6">Reverse-engineered from 216 decompiled DLLs (1.1M lines of C#) extracted from live worker containers.<br><br>Presented at <a href="https://troopers.de/" target="_blank" rel="noopener">Troopers 26</a> by Simon Maxwell-Stewart (<a href="https://x.com/btphantomlabs" target="_blank" rel="noopener">BeyondTrust</a>).</div></div>`
+},
+
+hyperv: {
+  side: 'right',
+  head: '<h2>HYPER-V BOUNDARY</h2><span class="sub">Guest / parent partition isolation</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The worker and sidecar run on the same Hyper-V node but in different partitions. The worker container is a <span style="color:var(--t)">guest partition</span>; the sidecar runs in the <span style="color:var(--t)">parent (host) partition</span>. They communicate over a point-to-point Hyper-V virtual switch at <span class="mono">169.254.128.1</span>, the only address routable from inside the container. Everything below was probed from inside the container running as SYSTEM.</div></div>
+<div class="sb-section"><h3>Cross-Partition Channels Probed</h3><table class="ep-table">
+<tr><th>Channel</th><th>Result</th></tr>
+<tr><td>HvSocket (AF_HYPERV)</td><td class="auth-ok">Refused</td></tr>
+<tr><td>VMBus guest interface</td><td class="auth-ok">No driver, no userspace</td></tr>
+<tr><td>Kernel driver load</td><td class="auth-ok">Blocked at hypervisor</td></tr>
+<tr><td>CExecSvc RPC</td><td class="auth-ok">No interface from guest</td></tr>
+<tr><td>Network scan</td><td class="auth-ok">2 ports, no lateral move</td></tr>
+</table><div style="margin-top:8px;font-size:14px;color:var(--td)">CExecSvc = Container Execution Service. A full TCP scan of 169.254.128.1 found only the sidecar gRPC port and a monitoring shim; no other host or container is reachable.</div></div>`
+},
+
+worker: {
+  side: 'right',
+  head: '<h2>WORKER PROCESS</h2><span class="sub">SandboxWorker.exe :9000</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The worker is a .NET process running inside a Hyper-V isolated container. It hosts third-party plugins in an AppDomain sandbox and listens on port 9000 for gRPC Execute calls from the gateway. When a plugin needs to interact with Dataverse, the worker proxies the request back up to the platform through the same bidirectional gRPC stream. The container runs as ContainerAdministrator with SYSTEM-equivalent privileges. Hyper-V isolation blocks kernel driver loading, VMBus and HvSocket channels, and access to other containers. The one host-side service it can reach is the sidecar, over a point-to-point virtual switch.</div></div>
+<div class="sb-section"><h3>Role</h3><ul>
+<li>Hosts third-party plugins in an AppDomain sandbox</li>
+<li>Runs plugin code on gRPC Execute calls from the Gateway</li>
+<li>Proxies plugin callbacks back up to the Platform</li>
+<li>Shared across many customer orgs (multi-tenant)</li>
+</ul></div>
+<div class="sb-section"><h3>Runtime</h3><table>
+<tr><td>Framework</td><td>.NET Framework 4.8.1</td></tr>
+<tr><td>Container</td><td>Windows Server Core (Hyper-V isolated)</td></tr>
+<tr><td>User</td><td>ContainerAdministrator <span class="tag tag-warn">SYSTEM equiv</span></td></tr>
+<tr><td>Filesystem</td><td>Ephemeral (no persistent mounts)</td></tr>
+<tr><td>Working dir</td><td class="mono">C:\\dataversesandboxworker</td></tr>
+</table></div>
+<div class="sb-section"><h3>gRPC Server</h3><table class="ep-table">
+<tr><th>Endpoint</th><th>Type</th><th>Auth</th></tr>
+<tr><td>Execute</td><td>DuplexStreaming</td><td class="auth-ok">Nonce</td></tr>
+<tr><td>Ping</td><td>Unary</td><td class="auth-none">None</td></tr>
+<tr><td>ValidateCodeSign</td><td>Unary</td><td class="auth-none">None</td></tr>
+<tr><td>ShutdownService</td><td>Unary</td><td class="auth-none">None</td></tr>
+</table><div style="margin-top:8px;font-size:15px;color:var(--td)">NonceValidatorInterceptor only overrides DuplexStreamingServerHandler. Unary methods accept any caller.</div></div>
+<div class="sb-section"><h3>Container Constraints</h3><ul>
+<li>Hyper-V isolation boundary (hardware-backed)</li>
+<li>No persistent mounts or shared volumes</li>
+<li>No <span class="mono">C:\\TrustedRootCerts</span> directory</li>
+<li>Root cert store writable but resets on recycle</li>
+<li>No host access except the sidecar (169.254.128.1)</li>
+<li>Cannot reach other containers</li>
+<li>Container recycles periodically, all state lost</li>
+</ul></div>
+`
+},
+
+plugin: {
+  side: 'right',
+  head: '<h2>PLUGIN EXECUTION</h2><span class="sub">3rd-party plugin sandboxing model</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">Plugins run inside the worker process but have no direct access to Dataverse or external services. Every operation a plugin performs - reading data, requesting tokens, writing trace logs - goes through a single callback mechanism. The plugin calls a service proxy, which hands the request to <span class="mono">SandboxCallbackService</span>. That service serializes the request and writes it to the same bidirectional gRPC stream that was opened for the Execute call. The gateway receives the callback, forwards it to the platform for processing, and returns the result back down the stream. This means all plugin I/O is funnelled through one chokepoint, and the platform gets to decide what is and is not allowed for each callback type.</div></div>
+<div class="sb-section"><h3>Plugin API Surface (20 services)</h3>
+<div style="font-size:15px;color:var(--td);margin-bottom:10px">Everything a plugin can call via the service provider. Color indicates the access gate.</div>
+<table style="width:100%;border-collapse:collapse;font-size:15px;">
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IOrganizationService</span></td><td style="color:var(--td);text-align:right">Dataverse data operations</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IPluginExecutionContext</span></td><td style="color:var(--td);text-align:right">Caller, entity, depth metadata</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IKeyVaultClient</span></td><td style="color:var(--td);text-align:right">Azure Key Vault secrets</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IEntityDataSourceRetrieverService</span></td><td style="color:var(--td);text-align:right">Virtual entity data sources</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IEnvironmentService</span></td><td style="color:var(--td);text-align:right">Environment metadata</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IFeatureControlService</span></td><td style="color:var(--td);text-align:right">Feature flag checks</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IPowerFxService</span></td><td style="color:var(--td);text-align:right">Power Fx evaluation</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IMetadataCacheService</span></td><td style="color:var(--td);text-align:right">Entity metadata caching</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">ISandboxCommandExecutionService</span></td><td style="color:var(--td);text-align:right">Execute commands via callback</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">ISandboxJobsService</span></td><td style="color:var(--td);text-align:right">Background job scheduling</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IOutputTokenStream</span></td><td style="color:var(--td);text-align:right">Server-sent event streaming</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#4aba7a">IMIPService</span></td><td style="color:var(--td);text-align:right">Information Protection labeling</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#5588cc">ITracingService</span></td><td style="color:var(--td);text-align:right">Diagnostic trace logging</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#5588cc">ILogger</span></td><td style="color:var(--td);text-align:right">Structured logging</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#5588cc">ILocalConfigStore</span></td><td style="color:var(--td);text-align:right">Local configuration storage</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#eaa307">IServiceEndpointNotificationService</span></td><td style="color:var(--td);text-align:right">Azure Service Bus publishing</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#eaa307">IServiceEndpointAuthService</span></td><td style="color:var(--td);text-align:right">Endpoint authentication</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#e05252">IOnBehalfOfTokenService</span></td><td style="color:var(--td);text-align:right">On-Behalf-Of (OBO) token acquisition</td></tr>
+<tr style="border-bottom:1px solid #1a1a1a"><td style="padding:4px 0"><span class="mono" style="color:#e05252">IManagedIdentityService</span></td><td style="color:var(--td);text-align:right">Managed identity tokens</td></tr>
+<tr><td style="padding:4px 0"><span class="mono" style="color:#e05252">IAssemblyAuthenticationContext</span></td><td style="color:var(--td);text-align:right">Token acquisition via Trusted Publisher Service (TPS)</td></tr>
+</table>
+</div>
+<div class="sb-section"><h3>Color Key</h3>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:15px;">
+<span style="color:#4aba7a;font-family:'Source Code Pro',monospace;font-size:14px">green</span><span style="color:var(--td)">Any plugin can call</span>
+<span style="color:#5588cc;font-family:'Source Code Pro',monospace;font-size:14px">blue</span><span style="color:var(--td)">Worker-local, never leaves container</span>
+<span style="color:#eaa307;font-family:'Source Code Pro',monospace;font-size:14px">amber</span><span style="color:var(--td)">Requires pre-registered resource</span>
+<span style="color:#e05252;font-family:'Source Code Pro',monospace;font-size:14px">red</span><span style="color:var(--td)">Platform checks assembly signing / TPS</span>
+</div></div>
+<div class="sb-section"><h3>First-Party Plugins</h3>
+<div style="font-size:15px;color:var(--td);margin-bottom:10px">First-party plugins are Microsoft-signed assemblies registered in the TPS. They run on the same container and in the same worker process as third-party plugins, but the platform treats their callbacks differently. When a first-party plugin requests an OBO or managed identity token, the platform recognizes its authenticode signature and TPS registration, and issues the token. A third-party plugin making the same callback gets rejected. The two types of plugin cannot call each other directly - they are separate assemblies triggered by different Dataverse messages. However, because they share the same process, they share the same memory space.</div>
+<ul>
+<li><span class="mono">Microsoft.PowerFx.PlexPlugins</span></li>
+<li><span class="mono">Microsoft.PowerPages.AzureBlob.Plugins</span></li>
+<li><span class="mono">Microsoft.Dynamics.AppCommon.Plugins</span></li>
+<li><span class="mono">Microsoft.PowerFx.ConnectorProviderPermissionPlugins</span></li>
+<li><span class="mono">Microsoft.Dynamics.SolutionPackageMapping.Plugins</span></li>
+<li><span class="mono">Microsoft.Dynamics.CDS.PlannerSyncPlugins</span></li>
+<li><span class="mono">Microsoft.Crm.Sandbox.SystemPlugins</span></li>
+</ul></div>
+`
+},
+
+user: {
+  side: 'right',
+  head: '<h2>CONTAINER USER</h2><span class="sub">ContainerAdministrator</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">ContainerAdministrator is the default identity inside the Hyper-V container. It holds SYSTEM-equivalent privileges within the container boundary, meaning it can read worker process memory, load DLLs, create services, and run arbitrary executables. The Hyper-V isolation boundary is what constrains it - not the user's privilege level.</div></div>
+<div class="sb-section"><h3>Identity</h3><table>
+<tr><td>User</td><td>ContainerAdministrator</td></tr>
+<tr><td>SID</td><td class="mono">S-1-5-93-2-1</td></tr>
+<tr><td>Type</td><td>Default Hyper-V container admin <span class="tag tag-warn">SYSTEM equiv</span></td></tr>
+<tr><td>Integrity</td><td>High</td></tr>
+</table></div>
+<div class="sb-section"><h3>Key Privileges</h3>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeDebugPrivilege</span><span class="priv-note">read process memory</span></div>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeTcbPrivilege</span><span class="priv-note">SYSTEM equivalent</span></div>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeImpersonatePrivilege</span><span class="priv-note">token impersonation</span></div>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeAssignPrimaryTokenPrivilege</span><span class="priv-note">process token</span></div>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeSecurityPrivilege</span><span class="priv-note">audit/security</span></div>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeIncreaseQuotaPrivilege</span><span class="priv-note">memory quota</span></div>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeChangeNotifyPrivilege</span><span class="priv-note">traverse checking</span></div>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeCreateGlobalPrivilege</span><span class="priv-note">global objects</span></div>
+<div class="priv-row"><span class="priv-check">&#x2713;</span><span class="priv-name">SeIncreaseWorkingSetPrivilege</span><span class="priv-note">working set</span></div>
+</div>
+<div class="sb-section"><h3>What This Means</h3><ul>
+<li>Full SYSTEM-equivalent within the container boundary</li>
+<li>Can read/write worker process memory</li>
+<li>Can load arbitrary DLLs, create processes</li>
+<li>Can modify the root certificate store (ephemeral)</li>
+<li>Can install and run arbitrary executables</li>
+</ul></div>
+<div class="sb-section"><h3>Boundaries (What Limits This)</h3><ul>
+<li>Hyper-V isolation prevents host access</li>
+<li>Network restricted by container firewall rules</li>
+<li>Only the sidecar (169.254.128.1) reachable host-side</li>
+<li>Cannot reach other worker containers</li>
+<li>Container is ephemeral - recycles periodically</li>
+<li>All state lost on recycle (no persistence)</li>
+</ul></div>
+<div class="sb-section"><h3>Attack Surface</h3><ul>
+<li>Memory access to worker process enables reading nonces, tokens, plugin data</li>
+<li>Can deploy C2 agents and tools</li>
+<li>Can probe gRPC endpoints directly</li>
+<li>Background processes operate outside plugin sandbox</li>
+</ul></div>`
+},
+
+sidecar: {
+  side: 'right',
+  head: '<h2>SIDECAR SERVICE</h2><span class="sub">Host-side gRPC service (per-node)</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The sidecar is a gRPC service running in the Hyper-V host's parent partition. The worker container runs in a guest partition on the same node and reaches the sidecar over a point-to-point Hyper-V virtual switch (169.254.128.1) using TLS. It provides environment configuration, token acquisition, extension package loading, and telemetry. The Hyper-V boundary blocks driver loading, VMBus and HvSocket access, and lateral movement to other containers, but it does not restrict this gRPC channel: the sidecar enforces no client authentication on any of its methods, so any code in the container, including attacker-controlled code running as SYSTEM, can call all of them.</div></div>
+<div class="sb-section"><h3>Role</h3><ul>
+<li>Serves environment config, nonces, and org metadata</li>
+<li>Acquires OAuth and Azure tokens for the worker</li>
+<li>Streams plugin and extension assemblies into the container</li>
+<li>Handles telemetry, crash events, and port proxying</li>
+</ul></div>
+<div class="sb-section"><h3>Connection</h3><table>
+<tr><td>Protocol</td><td>gRPC (HTTP/2)</td></tr>
+<tr><td>TLS</td><td>One-way (server cert only)</td></tr>
+<tr><td>Host</td><td>169.254.128.1 (Hyper-V virtual switch)</td></tr>
+<tr><td>Port</td><td>Dynamic (observed 11936)</td></tr>
+<tr><td>Client auth</td><td style="color:#e05252">None</td></tr>
+</table></div>
+<div class="sb-section"><h3>Environment Variables</h3>
+<div style="font-size:14px;color:var(--tm);margin-bottom:8px">Example values from a live worker</div>
+<div class="env-row"><span class="env-key">Plex_Nonce</span><span class="env-val">a1196ff5-5767-48eb-b178-6806c4bb08c1</span></div>
+<div class="env-row"><span class="env-key">SideCarHost</span><span class="env-val">wus.euap.prod.sbx.dynamics.com;wus351.prd.sbx.dynamics.com</span></div>
+<div class="env-row"><span class="env-key">SideCarShimEndpointPort</span><span class="env-val">23366</span></div>
+<div class="env-row"><span class="env-key">AzureTenantId</span><span class="env-val">975f013f-7f24-47e8-a7d3-abc4752bf346</span></div>
+<div class="env-row"><span class="env-key">AzureAppId</span><span class="env-val">4739d088-894a-4baf-b733-8cc37a16f1ae</span></div>
+<div class="env-row"><span class="env-key">AzureAuthorityHost</span><span class="env-val">https://login.microsoftonline.com/</span></div>
+<div class="env-row"><span class="env-key">CertLocation</span><span class="env-val">C:\\app\\certs</span></div>
+<div class="env-row"><span class="env-key">WorkerProcessId</span><span class="env-val">a1196ff5-5767-48eb-b178-6806c4bb08c1</span></div>
+<div class="env-row"><span class="env-key">Plex_HostingServiceType</span><span class="env-val">PluginCtrWorkerService</span></div>
+<div class="env-row"><span class="env-key">Fabric_ApplicationName</span><span class="env-val">PowerPlatform.Plex</span></div>
+<div class="env-row"><span class="env-key">Fabric_NodeName</span><span class="env-val">_prdil301wuspq0_35</span></div>
+<div class="env-row"><span class="env-key">CS_CLUSTERNAME</span><span class="env-val">prdil301wus</span></div>
+<div class="env-row"><span class="env-key">CS_REGIONNAME</span><span class="env-val">westus</span></div>
+<div class="env-row"><span class="env-key">CS_ENVIRONMENTNAME</span><span class="env-val">prod</span></div>
+<div class="env-row"><span class="env-key">CS_CLUSTERCATEGORY</span><span class="env-val">firstrelease</span></div>
+<div class="env-row"><span class="env-key">COMPUTERNAME</span><span class="env-val">PLX-PQ000000Z</span></div>
+</div>
+<div class="sb-section"><h3>gRPC Endpoints</h3><table class="ep-table">
+<tr><th>Method</th><th>Type</th></tr>
+<tr><td>GetAccessToken</td><td>Unary</td></tr>
+<tr><td>GetTokenFromCustomerIdentity</td><td>Unary</td></tr>
+<tr><td>GetEnvironmentVariables</td><td>Unary</td></tr>
+<tr><td>GetWorkerAssignedMetadata</td><td>Unary</td></tr>
+<tr><td>GetServiceParameters</td><td>Unary</td></tr>
+<tr><td>GetClusterEnvironmentSettings</td><td>Unary</td></tr>
+<tr><td>GetCurrentInstanceCount</td><td>Unary</td></tr>
+<tr><td>GetOpenIdSigningKeys</td><td>Unary</td></tr>
+<tr><td>GetIsIGTokenValidationEnabled</td><td>Unary</td></tr>
+<tr><td>GetLastCrashEvent</td><td>Unary</td></tr>
+<tr><td>SendCrashEvent</td><td>Unary</td></tr>
+<tr><td>LoadExtensionPackage</td><td>Unary</td></tr>
+<tr><td>LoadBackgroundExtensionPackage</td><td>Unary</td></tr>
+<tr><td>SetNamingServiceProperty</td><td>Unary</td></tr>
+<tr><td>ProcessPortProxyRequest</td><td>Unary</td></tr>
+<tr><td>ReportMetric</td><td>Unary</td></tr>
+<tr><td>ReportWorkerLoad</td><td>Unary</td></tr>
+<tr><td>ReportWorkerBusy</td><td>Unary</td></tr>
+<tr><td>ReportWorkerComplete</td><td>Unary</td></tr>
+<tr><td>LogWorkerTelemetry</td><td>ClientStreaming</td></tr>
+<tr><td>LoadDataverseExtensionAssembly</td><td>ClientStreaming</td></tr>
+<tr><td>LoadHostInjectionPackage</td><td>ClientStreaming</td></tr>
+</table></div>
+<div class="sb-section"><h3>Reachable From Container</h3><ul>
+<li>Any container process can dial 169.254.128.1 (virtual switch)</li>
+<li>Includes attacker code running as SYSTEM</li>
+<li>Only routable host on the switch (no lateral movement)</li>
+<li>No client auth, tenant scoping, or request validation</li>
+</ul></div>`
+},
+
+gateway: {
+  side: 'right',
+  head: '<h2>GATEWAY</h2><span class="sub">SandboxManagerService :443</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The gateway sits between the platform and the worker pool. It routes plugin execution requests to available workers and relays callbacks in the other direction. It does not make authorization decisions itself - it is a transparent relay. The platform authenticates to the gateway with JWT tokens, and the gateway authenticates to workers with a per-worker nonce.</div></div>
+<div class="sb-section"><h3>Role</h3><ul>
+<li>Routes plugin execution requests from Platform to Workers</li>
+<li>Manages worker pool and container lifecycle</li>
+<li>Relays plugin callbacks back to Platform</li>
+<li>Serves assemblies to workers via streaming</li>
+</ul></div>
+<div class="sb-section"><h3>Inbound Auth (Platform to Gateway)</h3><table>
+<tr><td>Protocol</td><td>gRPC over TLS</td></tr>
+<tr><td>Auth</td><td>JWT bearer token <span class="tag tag-ok">validated</span></td></tr>
+<tr><td>Audiences</td><td>Configured per-deployment</td></tr>
+<tr><td>Issuer</td><td>Microsoft identity platform (Entra ID)</td></tr>
+</table></div>
+<div class="sb-section"><h3>Outbound Auth (Gateway to Worker)</h3><table>
+<tr><td>Protocol</td><td>gRPC over TLS</td></tr>
+<tr><td>Auth</td><td>Nonce-based</td></tr>
+<tr><td>Nonce source</td><td>Generated per-worker at assignment</td></tr>
+<tr><td>Nonce delivery</td><td>Via sidecar env vars</td></tr>
+<tr><td>Coverage</td><td style="color:#eaa307">DuplexStreaming only (unary gap)</td></tr>
+</table></div>
+<div class="sb-section"><h3>gRPC Interface</h3><table class="ep-table">
+<tr><th>Method</th><th>Type</th></tr>
+<tr><td>Execute</td><td>DuplexStreaming</td></tr>
+<tr><td>AssemblyServing</td><td>ServerStreaming</td></tr>
+<tr><td>WorkerLifecycle</td><td>Unary</td></tr>
+</table></div>
+<div class="sb-section"><h3>Assembly Serving</h3><ul>
+<li>Gateway pushes plugin assemblies to workers</li>
+<li>Delivered via DuplexStreaming Execute flow</li>
+<li>Workers cache assemblies in-process</li>
+<li>Assembly identity validated: name + version + public key token</li>
+</ul></div>
+<div class="sb-section"><h3>Callback Handling</h3><ul>
+<li>Worker sends callback requests during plugin execution</li>
+<li>Gateway relays to Platform for processing</li>
+<li>Platform responses forwarded back to worker</li>
+<li>RequestDataOneofCase identifies callback type</li>
+</ul></div>`
+},
+
+platform: {
+  side: 'right',
+  head: '<h2>PLATFORM</h2><span class="sub">Dataverse Application Servers</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The platform is the Dataverse application server tier and the intended security boundary. All authorization decisions happen here: which tokens get minted, which callbacks are allowed, and which assemblies are trusted. The gateway and worker are transparent from a trust perspective. If a plugin requests an On-Behalf-Of (OBO) token, the platform checks authenticode signing and Trusted Publisher Service (TPS) registration before issuing it. If a plugin makes a CRUD callback, the platform enforces the standard Dataverse privilege model.</div></div>
+<div class="sb-section"><h3>Role</h3>
+<ul>
+<li>Dispatches plugin execution requests to Gateway</li>
+<li>Processes all plugin callbacks (CRUD, token, etc.)</li>
+<li>Validates assembly identity and signing</li>
+<li>Gates access to token services</li>
+</ul></div>`
+},
+
+'arrow-pg': {
+  side: 'right',
+  head: '<h2>PLATFORM &rarr; GATEWAY</h2><span class="sub">Transport &amp; authentication details</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">This link carries plugin execution requests from the platform to the gateway. The platform authenticates with a JWT bearer token issued by Entra ID. The gateway validates the token signature, audience, and expiry before accepting the request.</div></div>
+<div class="sb-section"><h3>Transport</h3><table>
+<tr><td>Protocol</td><td>gRPC (HTTP/2)</td></tr>
+<tr><td>TLS</td><td>Standard</td></tr>
+<tr><td>Port</td><td class="mono">443</td></tr>
+<tr><td>Direction</td><td>Platform initiates to Gateway</td></tr>
+</table></div>
+<div class="sb-section"><h3>Authentication</h3><table>
+<tr><td>Mechanism</td><td>JWT bearer token</td></tr>
+<tr><td>Issuer</td><td>Microsoft identity platform (Entra ID)</td></tr>
+<tr><td>Audiences</td><td>Configured per-deployment</td></tr>
+<tr><td>Validation</td><td>Standard JWT validation (signature, expiry, audience)</td></tr>
+</table></div>`
+},
+
+'arrow-gw': {
+  side: 'right',
+  head: '<h2>GATEWAY &rarr; WORKER</h2><span class="sub">Transport &amp; authentication details</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">This is the bidirectional gRPC stream over which plugins execute and callbacks flow. The gateway opens a DuplexStreaming call to the worker, sends the execution request, and then both sides exchange messages until the plugin completes. Authentication is nonce-based, but the nonce check only applies to the DuplexStreaming method. The worker's three unary methods (Ping, ValidateCodeSign, ShutdownService) accept connections without any authentication.</div></div>
+<div class="sb-section"><h3>Transport</h3><table>
+<tr><td>Protocol</td><td>gRPC (HTTP/2)</td></tr>
+<tr><td>TLS</td><td>One-way (server cert only)</td></tr>
+<tr><td>Port</td><td class="mono">9000</td></tr>
+<tr><td>Direction</td><td>Gateway initiates to Worker</td></tr>
+</table></div>
+<div class="sb-section"><h3>Authentication</h3><table>
+<tr><td>Mechanism</td><td>Nonce-based</td></tr>
+<tr><td>Nonce source</td><td>Generated per-worker at assignment</td></tr>
+<tr><td>Delivery</td><td>Via sidecar env vars (Plex_Nonce)</td></tr>
+<tr><td>Interceptor</td><td class="mono">NonceValidatorInterceptor</td></tr>
+</table></div>
+`
+},
+
+'arrow-ws': {
+  side: 'right',
+  head: '<h2>WORKER &rarr; SIDECAR</h2><span class="sub">Transport &amp; authentication details</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The worker connects to the sidecar over a point-to-point Hyper-V virtual switch (169.254.128.1) using gRPC over TLS. There is no client certificate, no bearer token, and no nonce. The sidecar sits in the host's parent partition, but the Hyper-V boundary does not restrict this channel: any process in the container, including attacker-controlled SYSTEM code, can call every method with zero authentication.</div></div>
+<div class="sb-section"><h3>Transport</h3><table>
+<tr><td>Protocol</td><td>gRPC (HTTP/2)</td></tr>
+<tr><td>TLS</td><td>One-way (server cert only)</td></tr>
+<tr><td>Host</td><td>169.254.128.1 (virtual switch)</td></tr>
+<tr><td>Port</td><td>Dynamic (observed 11936)</td></tr>
+<tr><td>Direction</td><td>Worker initiates to Sidecar</td></tr>
+</table></div>
+<div class="sb-section"><h3>Authentication</h3><table>
+<tr><td>Client cert</td><td style="color:#e05252">None</td></tr>
+<tr><td>Bearer token</td><td style="color:#e05252">None</td></tr>
+<tr><td>Nonce</td><td style="color:#e05252">None</td></tr>
+</table><div style="margin-top:8px;font-size:15px;color:var(--td)">No client authentication of any kind. Any process in the container can reach the sidecar over the virtual switch (169.254.128.1) and call every method.</div></div>
+`
+}
+};
+
+function setState(target) {
+  if (currentState === target) { target = null; }
+  currentState = target;
+  svg.classList.remove('dim-all','state-plugin','hyperv-sel');
+  document.querySelectorAll('.clickable,.arrow-group').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.clickable rect, .clickable').forEach(el => el.removeAttribute('filter'));
+
+  if (!target) {
+    sidebar.classList.remove('open');
+    ['el-platform','el-gateway','el-worker','el-sidecar'].forEach(function(id) {
+      var box = document.getElementById(id);
+      if (box) {
+        var r = box.querySelector('rect');
+        if (r) { r.setAttribute('stroke','#eaa307'); r.setAttribute('stroke-width','1'); }
+        box.removeAttribute('filter');
+      }
+    });
+    var pr = document.querySelector('#el-plugin rect');
+    if (pr) { pr.setAttribute('stroke','#333'); pr.setAttribute('stroke-width','.7'); pr.setAttribute('fill','transparent'); }
+    document.getElementById('el-plugin').removeAttribute('filter');
+    document.querySelectorAll('.arrow-group line').forEach(function(l) { l.setAttribute('stroke','#505050'); l.setAttribute('stroke-width','1.3'); });
+    document.querySelectorAll('.arrow-group polygon').forEach(function(p) { p.setAttribute('fill','#505050'); });
+    return;
+  }
+
+  const content = CONTENT[target];
+  if (!content) return;
+
+  svg.classList.add('dim-all');
+  if (target === 'plugin') svg.classList.add('state-plugin');
+  if (target === 'hyperv') svg.classList.add('hyperv-sel');
+
+  // Highlight active element
+  const el = document.querySelector('[data-target="'+target+'"]');
+  if (el) {
+    const g = el.closest('.clickable') || el.closest('.arrow-group');
+    if (g) { g.classList.add('active'); }
+    const r = (el.closest('.clickable') || el).querySelector('rect');
+    if (r && r.getAttribute('fill') !== 'transparent' && r.getAttribute('fill') !== 'none') {
+      r.setAttribute('stroke','#eaa307');
+      r.setAttribute('stroke-width','2');
+      el.closest('.clickable').setAttribute('filter','url(#glow)');
+    }
+  }
+
+  // For arrows, highlight the arrow group
+  if (target.startsWith('arrow-')) {
+    const ag = document.getElementById('el-'+target);
+    if (ag) ag.classList.add('active');
+    ag.querySelectorAll('line').forEach(l => { l.setAttribute('stroke','#eaa307'); l.setAttribute('stroke-width','2'); });
+    ag.querySelectorAll('polygon').forEach(p => p.setAttribute('fill','#eaa307'));
+    // Also highlight connected boxes
+    var connectedBoxes = [];
+    if (target === 'arrow-pg') connectedBoxes = ['el-platform','el-gateway'];
+    if (target === 'arrow-gw') connectedBoxes = ['el-gateway','el-worker'];
+    if (target === 'arrow-ws') connectedBoxes = ['el-worker','el-sidecar'];
+    connectedBoxes.forEach(function(id) {
+      var box = document.getElementById(id);
+      if (box) {
+        box.classList.add('active');
+        var br = box.querySelector('rect');
+        if (br && br.getAttribute('fill') !== 'transparent') { br.setAttribute('stroke','#eaa307'); br.setAttribute('stroke-width','2'); }
+        box.setAttribute('filter','url(#glow)');
+      }
+    });
+  }
+
+  // For plugin, also highlight the plugin box
+  if (target === 'plugin') {
+    document.getElementById('el-plugin').classList.add('active');
+    const pr = document.querySelector('#el-plugin rect');
+    pr.setAttribute('stroke','#eaa307'); pr.setAttribute('stroke-width','1.5');
+    pr.setAttribute('fill','#1a1508');
+    document.getElementById('el-plugin').setAttribute('filter','url(#glow)');
+  }
+
+  // Sidebar
+  sidebar.className = content.side === 'left' ? 'side-left open' : 'side-right open';
+  sidebar.innerHTML = '<div class="sb-head"><span class="close" onclick="setState(null)">&#x2715;</span>' + content.head + '</div>' + content.body;
+
+}
+
+// Click handlers
+document.querySelectorAll('.clickable').forEach(el => {
+  el.addEventListener('click', e => {
+    e.stopPropagation();
+    setState(el.dataset.target || el.querySelector('[data-target]')?.dataset.target);
+  });
+});
+document.querySelectorAll('.arrow-hit').forEach(el => {
+  el.addEventListener('click', e => {
+    e.stopPropagation();
+    setState(el.dataset.target);
+  });
+});
+function adjustViewBox() {
+  var s = document.getElementById('d');
+  s.setAttribute('viewBox', window.innerWidth < 768 ? '150 0 600 575' : '0 0 960 575');
+}
+window.addEventListener('resize', adjustViewBox);
+adjustViewBox();
+
+document.body.addEventListener('click', e => {
+  if (!e.target.closest('#sidebar') && !e.target.closest('.clickable') && !e.target.closest('.arrow-hit')) {
+    setState(null);
+  }
+});
+</script>
+</body>
+</html>

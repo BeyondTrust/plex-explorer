@@ -22,6 +22,19 @@
     letter-spacing: 1px;
     margin: 0;
   }
+  #header .right { display: flex; align-items: center; gap: 12px; }
+  #version-select {
+    background: #1c1c1c;
+    color: #e4e4e4;
+    border: 1px solid #3a3a3a;
+    border-radius: 3px;
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 13px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  #version-select:hover, #version-select:focus { border-color: #eaa307; outline: none; }
   #header a {
     color: #999;
     text-decoration: none;
@@ -47,17 +60,36 @@
 <div id="header">
   <div style="display:flex;align-items:baseline">
     <h1>PLEX EXPLORER</h1>
-    <span style="font-size:12px;color:#505050;margin-left:14px;font-family:'Source Sans 3',sans-serif;">Reverse Engineered from 216 Decompiled DLLs (1.1M lines of C#)</span>
+    <span id="subtitle" style="font-size:12px;color:#505050;margin-left:14px;font-family:'Source Sans 3',sans-serif;"></span>
   </div>
-  <a href="index.html">&larr; Back to Explorer</a>
+  <div class="right">
+    <select id="version-select" aria-label="Architecture version">
+      <option value="defcon">DEF CON — Copilot Studio (Python)</option>
+      <option value="troopers">TROOPERS — Dataverse Plugin</option>
+    </select>
+    <a id="back-link" href="index.html">&larr; Back to Explorer</a>
+  </div>
 </div>
 
 <div id="swagger-ui"></div>
 
 <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
 <script>
+const CFG = {
+  defcon:   { url: 'openapi-defcon.yaml', subtitle: 'Copilot Studio Python code interpreter — MiddleEarth worker gRPC surface' },
+  troopers: { url: 'openapi.yaml',        subtitle: 'Reverse Engineered from 216 Decompiled DLLs (1.1M lines of C#)' }
+};
+const v = new URLSearchParams(location.search).get('v') === 'troopers' ? 'troopers' : 'defcon';
+
+document.getElementById('subtitle').textContent = CFG[v].subtitle;
+document.getElementById('version-select').value = v;
+document.getElementById('back-link').href = 'index.html?v=' + v;
+document.getElementById('version-select').addEventListener('change', e => {
+  location.href = 'api-docs.html?v=' + e.target.value;
+});
+
 SwaggerUIBundle({
-  url: 'openapi.yaml',
+  url: CFG[v].url,
   dom_id: '#swagger-ui',
   deepLinking: true,
   presets: [SwaggerUIBundle.presets.apis],

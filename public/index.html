@@ -125,6 +125,30 @@ header a:hover{border-color:var(--a);color:var(--t);}
   header .sub{display:none;}
   header h1{white-space:nowrap;}
 }
+
+/* Version selector in header */
+#version-select{background:#1c1c1c;color:var(--t);border:1px solid var(--bl);border-radius:3px;font-family:'Source Sans 3',sans-serif;font-size:14px;padding:4px 10px;margin-right:10px;cursor:pointer;transition:border-color .2s;}
+#version-select:hover,#version-select:focus{border-color:var(--a);outline:none;}
+header .header-right{display:flex;align-items:center;}
+svg.diagram{display:none;}
+/* Footer (per-version, injected by setVersion) */
+#footer{display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 0 0;color:var(--tm);font-size:15px;flex-wrap:wrap;}
+.defcon-link{display:inline-flex;}
+.defcon-link img{opacity:.85;transition:opacity .2s;}
+.defcon-link:hover img{opacity:1;}
+
+/* DEFCON expand states: worker reveals its internal pipeline, platform reveals the LLM pipeline */
+#dc-worker-stages{opacity:0;pointer-events:none;transition:opacity .35s ease .08s;}
+.state-wexpand #dc-worker-stages{opacity:1;pointer-events:auto;}
+#dc-worker rect{transition:height .35s ease;}
+#dc-worker-summary{transition:opacity .25s ease;}
+.state-wexpand #dc-worker-summary{opacity:0;pointer-events:none;}
+#dc-platform-internals{opacity:0;pointer-events:none;transition:opacity .35s ease .08s;}
+.state-pexpand #dc-platform-internals{opacity:1;pointer-events:auto;}
+#dc-below{transition:transform .35s ease;}
+.state-pexpand #dc-below{transform:translateY(80px);}
+.hyperv-sel #dc-hyperv-default{opacity:.75;}
+.hyperv-sel #dc-hyperv-label-default{opacity:.95;}
 </style>
 </head>
 <body>
@@ -133,11 +157,17 @@ header a:hover{border-color:var(--a);color:var(--t);}
     <h1>PLEX EXPLORER</h1>
     <span class="info-btn" title="About this project" aria-label="About this project" onclick="event.stopPropagation();setState('about')">i</span>
   </div>
-  <a href="api-docs.html">gRPC Docs</a>
+  <div class="header-right">
+    <select id="version-select" aria-label="Architecture version" onchange="setVersion(this.value)">
+      <option value="defcon">DEF CON &mdash; Copilot Studio (Python)</option>
+      <option value="troopers">TROOPERS &mdash; Dataverse Plugin</option>
+    </select>
+    <a id="grpc-docs-link" href="api-docs.html?v=defcon">gRPC Docs</a>
+  </div>
 </header>
 
 <div id="wrap">
-<svg id="d" viewBox="0 0 960 575" width="100%">
+<svg id="svg-troopers" class="diagram" viewBox="0 0 960 575" width="100%">
   <defs>
     <filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#eaa307" flood-opacity=".5"/></filter>
   </defs>
@@ -276,20 +306,155 @@ header a:hover{border-color:var(--a);color:var(--t);}
     <text x="440" y="535" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">SidecarService</text>
   </g>
 </svg>
-<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 0 0;color:var(--tm);font-size:15px;">
-  <span>Created by Simon Maxwell-Stewart for</span>
-  <a href="https://troopers.de/" target="_blank" rel="noopener" class="troopers-link" aria-label="Troopers"><img src="troopers-logo.png" alt="Troopers" style="height:18px;"></a>
-</div>
+
+<!-- ===================== DEFCON: Copilot Studio code interpreter ===================== -->
+<svg id="svg-defcon" class="diagram" viewBox="0 0 960 575" width="100%">
+  <defs>
+    <filter id="glow-dc"><feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#eaa307" flood-opacity=".5"/></filter>
+  </defs>
+
+  <!-- PLATFORM (orchestration; click to open the LLM pipeline) -->
+  <g id="dc-platform" class="clickable" data-target="platform">
+    <rect x="240" y="24" width="400" height="58" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+    <text x="440" y="48" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="17" fill="#e4e4e4">COPILOT STUDIO</text>
+    <text x="440" y="66" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">Python Code Interpreter</text>
+  </g>
+
+  <!-- everything below the platform; shifts down when the platform expands -->
+  <g id="dc-below">
+
+  <!-- Arrow P-G -->
+  <g id="dc-arrow-pg" class="arrow-group">
+    <rect x="425" y="82" width="50" height="57" class="arrow-hit" data-target="arrow-pg"/>
+    <line class="flow-down" x1="440" y1="82" x2="440" y2="132" stroke="#505050" stroke-width="1.3" stroke-dasharray="6 4"/>
+    <polygon points="434,128 440,139 446,128" fill="#505050"/>
+    <text x="458" y="105" font-family="'Source Code Pro',monospace" font-size="12" fill="#eaa307" font-weight="500">gRPC</text>
+    <text x="458" y="119" font-family="'Source Sans 3',sans-serif" font-size="11" fill="#8a8a8a">JWT auth</text>
+  </g>
+
+  <!-- GATEWAY -->
+  <g id="dc-gateway" class="clickable" data-target="gateway">
+    <rect x="240" y="139" width="400" height="58" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+    <text x="440" y="165" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="17" fill="#e4e4e4">GATEWAY</text>
+    <text x="440" y="183" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">Power Platform gateway :443</text>
+  </g>
+
+  <!-- Arrow G-W -->
+  <g id="dc-arrow-gw" class="arrow-group">
+    <rect x="425" y="197" width="50" height="63" class="arrow-hit" data-target="arrow-gw"/>
+    <line class="flow-down" x1="440" y1="197" x2="440" y2="255" stroke="#505050" stroke-width="1.3" stroke-dasharray="6 4"/>
+    <polygon points="434,251 440,262 446,251" fill="#505050"/>
+    <text x="458" y="222" font-family="'Source Code Pro',monospace" font-size="12" fill="#eaa307" font-weight="500">gRPC</text>
+    <text x="458" y="236" font-family="'Source Sans 3',sans-serif" font-size="11" fill="#8a8a8a">No auth</text>
+  </g>
+
+  <!-- HYPER-V BOUNDARY -->
+  <g class="clickable hyperv-zone" data-target="hyperv">
+    <rect id="dc-hyperv-default" x="222" y="242" width="446" height="322" rx="5" fill="none" stroke="#eaa307" stroke-width=".8" stroke-dasharray="8 5" opacity=".3"/>
+    <text id="dc-hyperv-label-default" x="238" y="263" font-family="'Source Code Pro',monospace" font-size="10" fill="#eaa307" opacity=".5" letter-spacing="1.5px">HYPER-V BOUNDARY</text>
+  </g>
+
+  <!-- WORKER -->
+  <g id="dc-worker-group">
+    <g id="dc-worker" class="clickable" data-target="worker" style="pointer-events:bounding-box">
+      <rect x="240" y="272" width="400" height="162" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+      <text x="440" y="298" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="17" fill="#e4e4e4">WORKER</text>
+    </g>
+
+    <!-- collapsed summary -->
+    <g id="dc-worker-summary" style="pointer-events:none">
+      <text x="440" y="322" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">Code Interpreter &middot; MiddleEarth</text>
+      <text x="440" y="350" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="10" fill="#666">CodeInterpreterGrpcServiceShim.exe &#8594; CodeInterpreterShim.exe</text>
+      <text x="440" y="378" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="11" fill="#eaa307">runs as ContainerUser</text>
+      <text x="440" y="406" text-anchor="middle" font-family="'Source Sans 3',sans-serif" font-size="11" fill="#505050">click to trace a code execution request &#9662;</text>
+    </g>
+
+    <!-- expanded internal execution pipeline -->
+    <g id="dc-worker-stages">
+      <!-- vertical spine connectors (arrowheads clear of the next box) -->
+      <line x1="365" y1="343" x2="365" y2="353" stroke="#eaa307" stroke-width="1.2" opacity=".75"/>
+      <polygon points="361,353 369,353 365,356" fill="#eaa307" opacity=".85"/>
+      <line x1="365" y1="389" x2="365" y2="399" stroke="#eaa307" stroke-width="1.2" opacity=".75"/>
+      <polygon points="361,399 369,399 365,402" fill="#eaa307" opacity=".85"/>
+      <line x1="365" y1="427" x2="365" y2="437" stroke="#eaa307" stroke-width="1.2" opacity=".75"/>
+      <polygon points="361,437 369,437 365,440" fill="#eaa307" opacity=".85"/>
+
+      <g class="clickable" data-target="yarp">
+        <rect x="252" y="312" width="248" height="28" rx="3" fill="#0c181d" stroke="#8a8a8a" stroke-width="1"/>
+        <text x="258" y="325" font-family="'Source Code Pro',monospace" font-size="9.5" fill="#c8c8c8">CodeInterpreterGrpcServiceShim.exe</text>
+        <text x="258" y="336" font-family="'Source Code Pro',monospace" font-size="8" fill="#808080">&#8594; YARP reverse proxy</text>
+      </g>
+      <g class="clickable" data-target="pyworker">
+        <rect x="252" y="358" width="248" height="28" rx="3" fill="#0c181d" stroke="#8a8a8a" stroke-width="1"/>
+        <text x="258" y="371" font-family="'Source Code Pro',monospace" font-size="9.5" fill="#c8c8c8">CodeInterpreterShim.exe</text>
+        <text x="258" y="382" font-family="'Source Code Pro',monospace" font-size="8" fill="#808080">&#8594; python server.py</text>
+      </g>
+      <g class="clickable" data-target="sandbox">
+        <rect x="252" y="404" width="248" height="20" rx="3" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+        <text x="258" y="418" font-family="'Source Code Pro',monospace" font-size="10.5" fill="#eaa307">make_sandbox()</text>
+        <text x="492" y="418" text-anchor="end" font-family="'Source Sans 3',sans-serif" font-size="9" fill="#606060">restricted</text>
+      </g>
+      <g class="clickable" data-target="exec">
+        <rect x="252" y="442" width="248" height="20" rx="3" fill="#1a1508" stroke="#eaa307" stroke-width="1.4"/>
+        <text x="258" y="456" font-family="'Source Code Pro',monospace" font-size="10.5" fill="#eaa307">exec(user Python)</text>
+        <text x="492" y="456" text-anchor="end" font-family="'Source Sans 3',sans-serif" font-size="9" fill="#8a8a8a">in-proc</text>
+      </g>
+
+      <!-- connector node: off exec, right side -->
+      <line x1="500" y1="452" x2="504" y2="452" stroke="#4aba7a" stroke-width="1.2" opacity=".75"/>
+      <polygon points="504,448 504,456 508,452" fill="#4aba7a" opacity=".85"/>
+      <g class="clickable" data-target="connector">
+        <rect x="509" y="442" width="102" height="20" rx="3" fill="#0c181d" stroke="#4aba7a" stroke-width="1"/>
+        <text x="560" y="456" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="9" fill="#4aba7a">connector_client</text>
+      </g>
+
+      <!-- egress: straight up from the connector's centre-top to the gateway (its return path) -->
+      <line class="flow-up" x1="560" y1="442" x2="560" y2="209" stroke="#4aba7a" stroke-width="1.4" stroke-dasharray="5 3" opacity=".8"/>
+      <polygon points="560,200 555,210 565,210" fill="#4aba7a" opacity=".9"/>
+    </g>
+  </g>
+
+  <!-- No worker->sidecar arrow: the sidecar is configured via env vars, but no client is present in the recovered code -->
+
+  <!-- SIDECAR -->
+  <g id="dc-sidecar" class="clickable" data-target="sidecar">
+    <rect x="240" y="491" width="400" height="58" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1"/>
+    <text x="440" y="517" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="600" font-size="17" fill="#e4e4e4">SIDECAR</text>
+    <text x="440" y="535" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">SidecarService</text>
+  </g>
+
+  </g><!-- /dc-below -->
+
+  <!-- PLATFORM INTERNALS (revealed on platform-expand; the stack below shifts down to make room) -->
+  <g id="dc-platform-internals">
+    <rect x="240" y="24" width="400" height="138" rx="4" fill="#0c181d" stroke="#eaa307" stroke-width="1.2"/>
+    <text x="440" y="48" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="17" fill="#e4e4e4">COPILOT STUDIO</text>
+    <text x="440" y="66" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#8a8a8a">Python Code Interpreter</text>
+    <text x="440" y="80" text-anchor="middle" font-family="'Source Sans 3',sans-serif" font-size="9.5" fill="#606060">user prompt + file</text>
+    <line x1="440" y1="82" x2="440" y2="94" stroke="#8a8a8a" stroke-width="1.2" opacity=".7"/>
+    <polygon points="436,93 440,99 444,93" fill="#8a8a8a" opacity=".8"/>
+
+    <!-- one LLM box; the maker picks the model, one model plays every role -->
+    <g class="clickable" data-target="llm">
+      <rect x="262" y="100" width="356" height="50" rx="4" fill="#0d1712" stroke="#eaa307" stroke-width="1"/>
+      <text x="440" y="120" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="14" fill="#e4e4e4">Prompt LLM</text>
+      <text x="440" y="140" text-anchor="middle" font-family="'Source Code Pro',monospace" font-size="12" fill="#c8c8c8">code-gen &nbsp;&middot;&nbsp; guardrail &nbsp;&middot;&nbsp; response</text>
+    </g>
+  </g>
+</svg>
+<div id="footer"></div>
 </div>
 
 <div id="sidebar" class="side-right"></div>
 
 <script>
 const sidebar = document.getElementById('sidebar');
-const svg = document.getElementById('d');
+let activeSvg = null;
+let CONTENT = null;
 let currentState = null;
+let currentVersion = null;
 
-const CONTENT = {
+const CONTENT_TROOPERS = {
 about: {
   side: 'right',
   head: '<h2>PLEX EXPLORER</h2><span class="sub">Dataverse plugin sandbox, aka Plex</span>',
@@ -623,89 +788,378 @@ platform: {
 }
 };
 
+const CONTENT_DEFCON = {
+about: {
+  side: 'right',
+  head: '<h2>PLEX EXPLORER</h2><span class="sub">Copilot Studio code interpreter, aka Plex / MiddleEarth</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.6">A learning aid for security researchers explaining how Microsoft's Copilot Studio Python code interpreter works behind the scenes.<br><br>Copilot Studio lets makers add a code interpreter to an agent: the agent writes Python to analyse an uploaded file, and that code runs server-side in a sandboxed Windows container on the same Plex platform as the Dataverse plugin sandbox. The code interpreter subsystem is codenamed <span class="mono">MiddleEarth</span>, built by the PAIO (Power AI Operations) team.</div></div>
+<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.6">Reconstructed from the code interpreter worker source and container forensics. Companion to the DEF CON talk by Simon Maxwell-Stewart and Ryan Hausknecht (<a href="https://x.com/btphantomlabs" target="_blank" rel="noopener">BeyondTrust</a>).<br><br>Use the version dropdown, top right, to switch to the TROOPERS Dataverse plugin sandbox.</div></div>`
+},
+platform: {
+  side: 'right',
+  head: '<h2>COPILOT STUDIO</h2><span class="sub">Power Platform orchestration</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">This is the orchestration tier, and it is where all the AI actually runs. A user gives the agent a prompt and a file. The model configured on the code interpreter prompt generates Python, reviews it as a guardrail (allow or block), and only approved code is dispatched down through the gateway to a container. When the container returns its output, the model writes the answer. It may be one model doing all of this or several; either way it runs here, and the container never sees it. <b>Click the box to open the Prompt LLM.</b></div></div>
+<div class="sb-section"><h3>What runs here</h3><ul>
+<li>Code-gen: turns the prompt + file into Python</li>
+<li>Guardrail: reviews that code, allow or block</li>
+<li>Response: writes the answer from the output</li>
+</ul></div>
+<div class="sb-section"><div style="font-size:15px;color:var(--td)">The key point: the container downstream never sees a model. The guardrail and code generation both live here, at the platform.</div></div>`
+},
+llm: {
+  side: 'right',
+  head: '<h2>PROMPT LLM</h2><span class="sub">the prompt\'s configured model &middot; several roles</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">Each code interpreter prompt is configured with a model, and that one model is reused across the round trip for several roles. We tested with GPT-4.1 mini because it was the least capable option on offer and the easiest to push past, but any supported model can be selected. It runs here at the platform; the container downstream never sees it.</div></div>
+<div class="sb-section"><h3>Roles</h3><table>
+<tr><td>code-gen</td><td>Turns the prompt + file into Python</td></tr>
+<tr><td>guardrail</td><td>Reviews that code, allow or block, before dispatch</td></tr>
+<tr><td>response</td><td>Reads the execution output, writes the answer</td></tr>
+</table></div>
+<div class="sb-section"><div style="font-size:15px;color:var(--td)">Because the guardrail is a model making a probabilistic judgement, the same code is not guaranteed the same verdict twice.</div></div>`
+},
+gateway: {
+  side: 'right',
+  head: '<h2>GATEWAY</h2><span class="sub">Power Platform gateway :443</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The gateway routes code interpreter requests from the platform to a container. Externally it authenticates the platform with a JWT, and internally it forwards the request into the container's YARP front on port 9001. Per-request tenant and agent context travels in x-ms-* headers, and traffic is stickily routed so the same agent keeps landing on the same warm container.</div></div>
+<div class="sb-section"><h3>Role</h3><ul>
+<li>Routes execution requests from Platform to a container</li>
+<li>Terminates inbound platform auth (JWT)</li>
+<li>Relays connector callbacks back to the platform</li>
+<li>Maintains sticky routing to warm containers</li>
+</ul></div>
+<div class="sb-section"><h3>Transport</h3><table>
+<tr><td>Protocol</td><td>gRPC over TLS</td></tr>
+<tr><td>Inbound auth</td><td>JWT bearer (Entra ID)</td></tr>
+<tr><td>Forwards to</td><td>YARP shim :9001</td></tr>
+</table></div>`
+},
+worker: {
+  side: 'right',
+  head: '<h2>WORKER</h2><span class="sub">Code Interpreter &middot; MiddleEarth</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The worker is the container that runs the approved code. It is a two-process design: a YARP reverse-proxy shim on port 9001 forwards to a single long-lived <span class="mono">python server.py</span> gRPC worker on port 9002, running as ContainerUser. User Python runs in-process inside that worker's interpreter. The guardrail that vetted the code ran upstream at the platform; this box just executes whatever Python it receives. <b>Click a stage to follow a request through the container.</b></div></div>
+<div class="sb-section"><h3>Runtime</h3><table>
+<tr><td>Framework</td><td>Python 3.12.8 (+ .NET 8 shims)</td></tr>
+<tr><td>Container</td><td>Windows Server 2022 Core (Hyper-V isolated)</td></tr>
+<tr><td>User</td><td>ContainerUser <span class="tag tag-ok">restricted</span></td></tr>
+<tr><td>SF service</td><td class="mono">PlxAiToolsPythonCtrSvc...</td></tr>
+<tr><td>Working dir</td><td class="mono">C:\\app</td></tr>
+</table></div>
+<div class="sb-section"><h3>Execution pipeline</h3><ul>
+<li>YARP shim :9001 forwards to the python worker</li>
+<li>python server.py :9002, Worker.Execute bi-directional stream</li>
+<li>make_sandbox builds the restricted namespace</li>
+<li>exec runs the user Python in-process</li>
+<li>exec reaches connectors and per-message files</li>
+</ul></div>
+<div class="sb-section"><h3>Boundaries</h3><ul>
+<li>Hyper-V isolation boundary (hardware-backed)</li>
+<li>In-process sandbox is a language-level boundary</li>
+<li>Only the sidecar reachable host-side</li>
+<li>Container is ephemeral, recycles from a warm pool</li>
+</ul></div>`
+},
+yarp: {
+  side: 'right',
+  head: '<h2>GRPC SERVICE SHIM</h2><span class="sub">Microsoft.PowerAI.CodeInterpreterGrpcServiceShim</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">A .NET 8 YARP reverse proxy, the container's front door on port 9001. It accepts the gateway's TLS connection, strips the <span class="mono">/extension/aibuilder</span> prefix, and forwards the request to the Python worker on the loopback port 9002. It also answers a <span class="mono">/status</span> health check by calling the worker's Status RPC. There is no authentication middleware, and <span class="mono">AllowedHosts</span> is <span class="mono">*</span>.</div></div>
+<div class="sb-section"><h3>Transport</h3><table>
+<tr><td>Protocol</td><td>gRPC (HTTP/2)</td></tr>
+<tr><td>TLS</td><td>Server cert (SandboxFabricSslCert)</td></tr>
+<tr><td>Port</td><td class="mono">9001</td></tr>
+<tr><td>Route</td><td class="mono">/extension/aibuilder/{**catchall}</td></tr>
+<tr><td>Forwards to</td><td class="mono">https://127.0.0.1:9002</td></tr>
+</table></div>`
+},
+pyworker: {
+  side: 'right',
+  head: '<h2>MIDDLEEARTH SHIM</h2><span class="sub">Microsoft.PowerAI.MiddleEarth.CodeInterpreterShim</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">A thin .NET launcher. It starts <span class="mono">python server.py</span>, the gRPC Worker on port 9002, and pipes that process's stdout and stderr into telemetry. That is all it does; the code interpreter itself runs inside the Python worker it launches, as ContainerUser.</div></div>
+<div class="sb-section"><h3>The worker it launches</h3><table class="ep-table">
+<tr><th>Endpoint</th><th>Type</th><th>Auth</th></tr>
+<tr><td>Execute</td><td>DuplexStreaming</td><td class="auth-none">TLS only</td></tr>
+<tr><td>Status</td><td>Unary</td><td class="auth-none">None</td></tr>
+</table><div style="margin-top:8px;font-size:15px;color:var(--td)"><span class="mono">server.py</span> binds <span class="mono">:9002</span> with one-way TLS (server cert only, the passwordless SandboxFabricSslCert); <span class="mono">INTEGRATION_TEST=true</span> drops it to plaintext. No nonce, no client-cert check, and one process serves every request. See the gRPC Docs for the full message surface.</div></div>`
+},
+sandbox: {
+  side: 'right',
+  head: '<h2>IN-PROC SANDBOX</h2><span class="sub">sandbox.py</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">User-submitted Python runs inside the worker's own interpreter, constrained by a language-level sandbox: restricted builtins, a blocklist import hook, safe wrappers around <span class="mono">os</span>, <span class="mono">io</span> and <span class="mono">tempfile</span>, and file access limited to the per-message uploads and outputs directories.</div></div>
+<div class="sb-section"><h3>Isolation model</h3><div style="font-size:15px;color:var(--td)">Because it runs in the same process as the worker, this is a language-level boundary rather than a process- or VM-level one.</div></div>
+<div class="sb-section"><h3>Per-message files</h3><div style="font-size:15px;color:var(--td);margin-bottom:8px">Each Execute message has an id (a GUID). The worker creates directories keyed by it so requests stay isolated on disk, then removes them once the response is sent.</div><table>
+<tr><td>Uploads</td><td class="mono">C:\\app\\uploads\\uploads_&lt;id&gt;</td></tr>
+<tr><td>Outputs</td><td class="mono">C:\\app\\outputs\\outputs_&lt;id&gt;</td></tr>
+</table></div>`
+},
+guardrail: {
+  side: 'right',
+  head: '<h2>GUARDRAIL LLM</h2><span class="sub">GPT-4.1 mini &middot; orchestration-side</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">Before any code is dispatched, a GPT-4.1 mini model reviews the generated Python and decides allow or block. It runs at the platform, in the same orchestration turn as code generation, so there are two AI models back to back: one writes the code, one judges it. The container never runs this check.</div></div>
+<div class="sb-section"><h3>Position</h3><table>
+<tr><td>Model</td><td>GPT-4.1 mini</td></tr>
+<tr><td>Runs</td><td>Platform / orchestration</td></tr>
+<tr><td>Between</td><td>code-gen and dispatch</td></tr>
+<tr><td>Decision</td><td>Allow or block</td></tr>
+</table><div style="margin-top:8px;font-size:15px;color:var(--td)">Unlike a static policy, a model makes a probabilistic judgement on each request, so the same input is not guaranteed the same verdict.</div></div>`
+},
+codegen: {
+  side: 'right',
+  head: '<h2>CODE-GEN LLM</h2><span class="sub">GPT-4.1 mini &middot; orchestration-side</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The user talks to the agent in natural language. A GPT-4.1 mini model turns that prompt (plus any uploaded file) into the Python that will run in the sandbox. This happens at the platform, not in the container, and its output is handed straight to the guardrail for review.</div></div>
+<div class="sb-section"><h3>Role</h3><ul>
+<li>Reads the user prompt and file context</li>
+<li>Emits the Python to execute</li>
+<li>Runs at the platform, upstream of the gateway</li>
+</ul></div>`
+},
+dispatch: {
+  side: 'right',
+  head: '<h2>DISPATCH</h2><span class="sub">approved code &rarr; gateway</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">Once the guardrail allows the code, the orchestration packs it into a <span class="mono">CodeExecutionRequestMessage</span> (the Python plus any input values) and sends it down through the gateway to a worker container over the <span class="mono">Worker.Execute</span> stream.</div></div>
+<div class="sb-section"><h3>Payload</h3><table>
+<tr><td>Message</td><td class="mono">CodeExecutionRequestMessage</td></tr>
+<tr><td>Fields</td><td class="mono">Code, Input</td></tr>
+<tr><td>Carried on</td><td>Worker.Execute (bi-directional stream)</td></tr>
+</table></div>`
+},
+response: {
+  side: 'right',
+  head: '<h2>RESPONSE LLM</h2><span class="sub">output &rarr; answer</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">When the container finishes, its output comes back up through the gateway to the orchestration, where a final LLM turn reads that output and writes the natural-language answer the user sees. This is the return leg of the same round trip that started with the prompt.</div></div>
+<div class="sb-section"><h3>Role</h3><ul>
+<li>Reads the code execution output</li>
+<li>Writes the answer back to the user</li>
+<li>Runs at the platform, on the way back</li>
+</ul></div>`
+},
+exec: {
+  side: 'right',
+  head: '<h2>EXEC (USER PYTHON)</h2><span class="sub">where the code runs</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The approved Python is executed in-process inside the sandbox namespace, as ContainerUser. The worker first injects helpers into that namespace, including <span class="mono">connector_client</span>, <span class="mono">input</span>, <span class="mono">output</span>, and <span class="mono">files</span>. There are two entry paths: if the code defines a <span class="mono">PromptExecutor</span> class it runs at module scope, otherwise the code is wrapped in an async function and awaited.</div></div>
+<div class="sb-section"><h3>From here, user code can</h3><ul>
+<li>Read and write the per-message uploads / outputs dirs</li>
+<li>Call connector_client to make an outbound request</li>
+<li>Return a result as the CodeExecutionResponse</li>
+</ul></div>`
+},
+files: {
+  side: 'right',
+  head: '<h2>FILES</h2><span class="sub">per-message upload / output dirs</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">Every Execute message carries an id (a GUID). Before the code runs, the worker calls <span class="mono">initialize_paths_for_message(message_id)</span>, which creates a dedicated set of directories keyed by that id, so one request's files stay separate from another's on disk.</div></div>
+<div class="sb-section"><h3>Per-message directories</h3><table>
+<tr><td>Uploads</td><td class="mono">C:\\app\\uploads\\uploads_&lt;id&gt;</td></tr>
+<tr><td>Outputs</td><td class="mono">C:\\app\\outputs\\outputs_&lt;id&gt;</td></tr>
+<tr><td>Temp</td><td class="mono">outputs_&lt;id&gt;\\temp</td></tr>
+</table></div>
+<div class="sb-section"><div style="font-size:15px;color:var(--td)">Uploaded files stream in as <span class="mono">fileStreamRequest</span> chunks and generated outputs stream back the same way. After the response is sent, the worker calls <span class="mono">shutil.rmtree</span> on the per-message dirs to clean up.</div></div>`
+},
+connector: {
+  side: 'right',
+  head: '<h2>CONNECTOR CALLBACK</h2><span class="sub">connector_client &middot; egress</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">User code is handed a <span class="mono">connector_client</span>. Calling <span class="mono">make_request(connector_name, method, path, ...)</span> sends an outbound HTTP request up the Worker.Execute reply stream as an <span class="mono">httpRequest</span>; the gateway routes it to the named Power Platform connector and returns the reply as an <span class="mono">httpResponse</span>. This is the sandbox's designed outbound path.</div></div>
+<div class="sb-section"><h3>Egress</h3><table>
+<tr><td>Mechanism</td><td>gRPC bi-directional callback</td></tr>
+<tr><td>Methods</td><td class="mono">GET POST PUT DELETE PATCH</td></tr>
+<tr><td>Path</td><td>Via gateway to Power Platform connectors</td></tr>
+</table></div>`
+},
+user: {
+  side: 'right',
+  head: '<h2>CONTAINER USER</h2><span class="sub">ContainerUser</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The worker process and all user code run as ContainerUser, a restricted container account. Unlike the Dataverse plugin sandbox, which runs as ContainerAdministrator, the code interpreter worker is deliberately low-privileged inside the container.</div></div>
+<div class="sb-section"><h3>Identity</h3><table>
+<tr><td>User</td><td>ContainerUser</td></tr>
+<tr><td>SID</td><td class="mono">S-1-5-93-2-2</td></tr>
+<tr><td>Domain</td><td>User Manager</td></tr>
+<tr><td>Type</td><td>Restricted container user</td></tr>
+</table></div>`
+},
+sidecar: {
+  side: 'right',
+  head: '<h2>SIDECAR SERVICE</h2><span class="sub">configured in env, not observed in code</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The container is <b>provisioned</b> to reach a sidecar: its address and a nonce arrive as environment variables (below). But none of the recovered code interpreter binaries, neither the two .NET shims nor the Python worker, read them or open a client to that address. So we can see the sidecar is configured, but from this surface we do not see how, or whether, the worker actually talks to it. That is why there is no arrow to it here.</div></div>
+<div class="sb-section"><div style="font-size:15px;color:var(--td)">It is almost certainly the same shared Plex <span class="mono">SidecarService</span> we reverse-engineered on the Dataverse sandbox. See the Troopers version for that gRPC surface. We simply cannot prove the mechanism from the code interpreter code we pulled.</div></div>
+<div class="sb-section"><h3>Sidecar config in the worker env</h3>
+<div style="font-size:14px;color:var(--tm);margin-bottom:8px">Example values from a live worker</div>
+<div class="env-row"><span class="env-key">SideCarHost</span><span class="env-val">wus107.prd.sbx.dynamics.com</span></div>
+<div class="env-row"><span class="env-key">SideCarIP</span><span class="env-val">10.0.25.5</span></div>
+<div class="env-row"><span class="env-key">SideCarShimEndpointPort</span><span class="env-val">20089</span></div>
+<div class="env-row"><span class="env-key">Plex_Nonce</span><span class="env-val">92bbbeb0-c1c5-4d81-b992-1b2232fabb19</span></div>
+<div class="env-row"><span class="env-key">AzureAppId</span><span class="env-val">4739d088-894a-4baf-b733-8cc37a16f1ae</span></div>
+<div class="env-row"><span class="env-key">AzureTenantId</span><span class="env-val">975f013f-7f24-47e8-a7d3-abc4752bf346, f8cdef31-a31e-4b4a-93e4-5f571e91255a, 72f988bf-86f1-41af-91ab-2d7cd011db47, 33e01921-4d64-4f8c-a055-5bdaffd5e33d</span></div>
+</div>`
+},
+'arrow-pg': {
+  side: 'right',
+  head: '<h2>PLATFORM &rarr; GATEWAY</h2><span class="sub">Transport &amp; authentication details</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">This link carries code interpreter execution requests from the platform to the gateway. The platform authenticates with a JWT bearer token issued by Entra ID.</div></div>
+<div class="sb-section"><h3>Transport</h3><table>
+<tr><td>Protocol</td><td>gRPC (HTTP/2)</td></tr>
+<tr><td>TLS</td><td>Standard</td></tr>
+<tr><td>Port</td><td class="mono">443</td></tr>
+<tr><td>Direction</td><td>Platform initiates to Gateway</td></tr>
+</table></div>
+<div class="sb-section"><h3>Authentication</h3><table>
+<tr><td>Mechanism</td><td>JWT bearer token</td></tr>
+<tr><td>Issuer</td><td>Microsoft identity platform (Entra ID)</td></tr>
+</table></div>`
+},
+'arrow-gw': {
+  side: 'right',
+  head: '<h2>GATEWAY &rarr; WORKER</h2><span class="sub">Transport &amp; authentication details</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The gateway forwards the request into the container over gRPC/TLS. It terminates at the YARP reverse-proxy shim on port 9001, which strips the route prefix and forwards to the Python worker on port 9002. The transport is server-cert TLS, but nothing authenticates the caller: no client cert, no nonce, no bearer token, and <span class="mono">AllowedHosts</span> is <span class="mono">*</span>.</div></div>
+<div class="sb-section"><h3>Transport</h3><table>
+<tr><td>Protocol</td><td>gRPC (HTTP/2)</td></tr>
+<tr><td>TLS</td><td>Server cert (one-way)</td></tr>
+<tr><td>Port</td><td class="mono">9001 (YARP) &rarr; 9002 (worker)</td></tr>
+<tr><td>Route</td><td class="mono">/extension/aibuilder/{**catchall}</td></tr>
+</table></div>
+<div class="sb-section"><h3>Authentication</h3><table>
+<tr><td>Caller auth</td><td style="color:#e05252">None (no client cert / nonce / token)</td></tr>
+</table></div>`
+},
+'arrow-ws': {
+  side: 'right',
+  head: '<h2>WORKER &rarr; SIDECAR</h2><span class="sub">Transport &amp; authentication details</span>',
+  body: `<div class="sb-section"><div style="font-size:16px;color:var(--td);line-height:1.5">The worker calls the host-side sidecar over gRPC/TLS for environment configuration, tokens, and telemetry. This is the same shared Plex SidecarService used by the Dataverse sandbox.</div></div>
+<div class="sb-section"><h3>Transport</h3><table>
+<tr><td>Protocol</td><td>gRPC (HTTP/2)</td></tr>
+<tr><td>TLS</td><td>Server cert</td></tr>
+<tr><td>Host</td><td class="mono">SIDECARHOST (env)</td></tr>
+<tr><td>Client auth</td><td style="color:#e05252">None</td></tr>
+<tr><td>Direction</td><td>Worker initiates to Sidecar</td></tr>
+</table></div>`
+}
+};
+
+// ---- version registry ----
+const VERSIONS = {
+  defcon: {
+    svgId: 'svg-defcon', content: CONTENT_DEFCON, docs: 'api-docs.html?v=defcon',
+    title: 'Plex Explorer - Copilot Studio Code Interpreter Sandbox Architecture',
+    glowId: 'glow-dc',
+    expands: { platform:'state-pexpand', llm:'state-pexpand', worker:'state-wexpand', yarp:'state-wexpand', pyworker:'state-wexpand', sandbox:'state-wexpand', exec:'state-wexpand', connector:'state-wexpand' },
+    arrowBoxes: { 'arrow-pg':['platform','gateway'], 'arrow-gw':['gateway','worker'], 'arrow-ws':['worker','sidecar'] },
+    footer: '<span>Created by Simon Maxwell-Stewart and Ryan Hausknecht for</span><a href="https://defcon.org/" target="_blank" rel="noopener" class="defcon-link" aria-label="DEF CON 34"><img src="dc-34-logo.avif" alt="DEF CON 34" style="height:26px;"></a>'
+  },
+  troopers: {
+    svgId: 'svg-troopers', content: CONTENT_TROOPERS, docs: 'api-docs.html?v=troopers',
+    title: 'Plex Explorer - Dataverse Plugin Sandbox Architecture',
+    glowId: 'glow',
+    expands: { plugin:'state-plugin' },
+    arrowBoxes: { 'arrow-pg':['platform','gateway'], 'arrow-gw':['gateway','worker'], 'arrow-ws':['worker','sidecar'] },
+    footer: '<span>Created by Simon Maxwell-Stewart for</span><a href="https://troopers.de/" target="_blank" rel="noopener" class="troopers-link" aria-label="Troopers"><img src="troopers-logo.png" alt="Troopers" style="height:18px;"></a>'
+  }
+};
+
+function snapshotStyles(svgEl) {
+  svgEl.querySelectorAll('.clickable rect').forEach(r => { r.dataset.s0 = r.getAttribute('stroke') || ''; r.dataset.sw0 = r.getAttribute('stroke-width') || ''; r.dataset.f0 = r.getAttribute('fill') || ''; });
+  svgEl.querySelectorAll('.arrow-group line').forEach(l => { l.dataset.s0 = l.getAttribute('stroke') || ''; l.dataset.sw0 = l.getAttribute('stroke-width') || ''; });
+  svgEl.querySelectorAll('.arrow-group polygon').forEach(p => { p.dataset.f0 = p.getAttribute('fill') || ''; });
+}
+function restoreStyles(svgEl) {
+  svgEl.querySelectorAll('.clickable rect').forEach(r => { r.setAttribute('stroke', r.dataset.s0); r.setAttribute('stroke-width', r.dataset.sw0); r.setAttribute('fill', r.dataset.f0); });
+  svgEl.querySelectorAll('.clickable').forEach(el => el.removeAttribute('filter'));
+  svgEl.querySelectorAll('.arrow-group line').forEach(l => { l.setAttribute('stroke', l.dataset.s0); l.setAttribute('stroke-width', l.dataset.sw0); });
+  svgEl.querySelectorAll('.arrow-group polygon').forEach(p => { p.setAttribute('fill', p.dataset.f0); });
+}
+
 function setState(target) {
   if (currentState === target) { target = null; }
   currentState = target;
-  svg.classList.remove('dim-all','state-plugin','hyperv-sel');
-  document.querySelectorAll('.clickable,.arrow-group').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.clickable rect, .clickable').forEach(el => el.removeAttribute('filter'));
+  const V = VERSIONS[currentVersion];
+  const wasPexpand = activeSvg.classList.contains('state-pexpand');
+  activeSvg.classList.remove('dim-all', 'hyperv-sel', 'state-plugin', 'state-wexpand', 'state-pexpand');
+  activeSvg.querySelectorAll('.clickable,.arrow-group').forEach(el => el.classList.remove('active'));
+  restoreStyles(activeSvg);
 
-  if (!target) {
-    sidebar.classList.remove('open');
-    ['el-platform','el-gateway','el-worker','el-sidecar'].forEach(function(id) {
-      var box = document.getElementById(id);
-      if (box) {
-        var r = box.querySelector('rect');
-        if (r) { r.setAttribute('stroke','#eaa307'); r.setAttribute('stroke-width','1'); }
-        box.removeAttribute('filter');
-      }
-    });
-    var pr = document.querySelector('#el-plugin rect');
-    if (pr) { pr.setAttribute('stroke','#333'); pr.setAttribute('stroke-width','.7'); pr.setAttribute('fill','transparent'); }
-    document.getElementById('el-plugin').removeAttribute('filter');
-    document.querySelectorAll('.arrow-group line').forEach(function(l) { l.setAttribute('stroke','#505050'); l.setAttribute('stroke-width','1.3'); });
-    document.querySelectorAll('.arrow-group polygon').forEach(function(p) { p.setAttribute('fill','#505050'); });
-    return;
-  }
-
+  if (!target) { sidebar.classList.remove('open'); vbAfter(wasPexpand); return; }
   const content = CONTENT[target];
   if (!content) return;
 
-  svg.classList.add('dim-all');
-  if (target === 'plugin') svg.classList.add('state-plugin');
-  if (target === 'hyperv') svg.classList.add('hyperv-sel');
+  activeSvg.classList.add('dim-all');
+  const ex = V.expands && V.expands[target]; if (ex) activeSvg.classList.add(ex);
+  if (target === 'hyperv') activeSvg.classList.add('hyperv-sel');
 
-  // Highlight active element
-  const el = document.querySelector('[data-target="'+target+'"]');
+  const el = activeSvg.querySelector('[data-target="' + target + '"]');
   if (el) {
-    const g = el.closest('.clickable') || el.closest('.arrow-group');
-    if (g) { g.classList.add('active'); }
-    const r = (el.closest('.clickable') || el).querySelector('rect');
-    if (r && r.getAttribute('fill') !== 'transparent' && r.getAttribute('fill') !== 'none') {
-      r.setAttribute('stroke','#eaa307');
-      r.setAttribute('stroke-width','2');
-      el.closest('.clickable').setAttribute('filter','url(#glow)');
+    const host = el.closest('.clickable') || el.closest('.arrow-group');
+    if (host) host.classList.add('active');
+    const clk = el.closest('.clickable');
+    const r = (clk || el).querySelector('rect');
+    if (r && clk) {
+      const f = r.getAttribute('fill');
+      if (f !== 'transparent' && f !== 'none') {
+        r.setAttribute('stroke', '#eaa307'); r.setAttribute('stroke-width', '2');
+        clk.setAttribute('filter', 'url(#' + V.glowId + ')');
+      } else if (!clk.classList.contains('user-link')) {
+        r.setAttribute('stroke', '#eaa307'); r.setAttribute('stroke-width', '1.5'); r.setAttribute('fill', '#1a1508');
+        clk.setAttribute('filter', 'url(#' + V.glowId + ')');
+      }
     }
   }
 
-  // For arrows, highlight the arrow group
   if (target.startsWith('arrow-')) {
-    const ag = document.getElementById('el-'+target);
-    if (ag) ag.classList.add('active');
-    ag.querySelectorAll('line').forEach(l => { l.setAttribute('stroke','#eaa307'); l.setAttribute('stroke-width','2'); });
-    ag.querySelectorAll('polygon').forEach(p => p.setAttribute('fill','#eaa307'));
-    // Also highlight connected boxes
-    var connectedBoxes = [];
-    if (target === 'arrow-pg') connectedBoxes = ['el-platform','el-gateway'];
-    if (target === 'arrow-gw') connectedBoxes = ['el-gateway','el-worker'];
-    if (target === 'arrow-ws') connectedBoxes = ['el-worker','el-sidecar'];
-    connectedBoxes.forEach(function(id) {
-      var box = document.getElementById(id);
+    const ag = el ? el.closest('.arrow-group') : null;
+    if (ag) {
+      ag.classList.add('active');
+      ag.querySelectorAll('line').forEach(l => { l.setAttribute('stroke', '#eaa307'); l.setAttribute('stroke-width', '2'); });
+      ag.querySelectorAll('polygon').forEach(p => p.setAttribute('fill', '#eaa307'));
+    }
+    (V.arrowBoxes[target] || []).forEach(function (t) {
+      const box = activeSvg.querySelector('[data-target="' + t + '"]');
       if (box) {
         box.classList.add('active');
-        var br = box.querySelector('rect');
-        if (br && br.getAttribute('fill') !== 'transparent') { br.setAttribute('stroke','#eaa307'); br.setAttribute('stroke-width','2'); }
-        box.setAttribute('filter','url(#glow)');
+        const br = box.querySelector('rect');
+        if (br && br.getAttribute('fill') !== 'transparent' && br.getAttribute('fill') !== 'none') { br.setAttribute('stroke', '#eaa307'); br.setAttribute('stroke-width', '2'); }
+        box.setAttribute('filter', 'url(#' + V.glowId + ')');
       }
     });
   }
 
-  // For plugin, also highlight the plugin box
-  if (target === 'plugin') {
-    document.getElementById('el-plugin').classList.add('active');
-    const pr = document.querySelector('#el-plugin rect');
-    pr.setAttribute('stroke','#eaa307'); pr.setAttribute('stroke-width','1.5');
-    pr.setAttribute('fill','#1a1508');
-    document.getElementById('el-plugin').setAttribute('filter','url(#glow)');
-  }
-
-  // Sidebar
   sidebar.className = content.side === 'left' ? 'side-left open' : 'side-right open';
   sidebar.innerHTML = '<div class="sb-head"><span class="close" onclick="setState(null)">&#x2715;</span>' + content.head + '</div>' + content.body;
-
+  vbAfter(wasPexpand);
 }
 
-// Click handlers
+function adjustViewBox() {
+  if (!activeSvg) return;
+  var mobile = window.innerWidth < 768;
+  var h = activeSvg.classList.contains('state-pexpand') ? 655 : 575;
+  activeSvg.setAttribute('viewBox', (mobile ? '150 0 600 ' : '0 0 960 ') + h);
+}
+// grow the viewBox immediately when opening the platform (so the pushed-down stack fits),
+// shrink it only after the slide-up animation finishes when closing
+function vbAfter(wasPexpand) {
+  syncWorkerHeight();
+  if (activeSvg.classList.contains('state-pexpand')) adjustViewBox();
+  else if (wasPexpand) setTimeout(adjustViewBox, 380);
+  else adjustViewBox();
+}
+// grow the worker box when its internals are shown so the pipeline arrows have room
+function syncWorkerHeight() {
+  if (!activeSvg) return;
+  var wr = activeSvg.querySelector('#dc-worker rect');
+  if (wr) wr.setAttribute('height', activeSvg.classList.contains('state-wexpand') ? '210' : '162');
+}
+
+function setVersion(v) {
+  if (!VERSIONS[v]) v = 'defcon';
+  currentVersion = v;
+  const V = VERSIONS[v];
+  CONTENT = V.content;
+  document.querySelectorAll('svg.diagram').forEach(s => { s.style.display = (s.id === V.svgId) ? 'block' : 'none'; });
+  activeSvg = document.getElementById(V.svgId);
+  currentState = null;
+  setState(null);
+  adjustViewBox();
+  var link = document.getElementById('grpc-docs-link'); if (link) link.setAttribute('href', V.docs);
+  var footer = document.getElementById('footer'); if (footer) footer.innerHTML = V.footer;
+  var sel = document.getElementById('version-select'); if (sel) sel.value = v;
+  document.title = V.title;
+  var url = new URL(window.location.href); url.searchParams.set('v', v); history.replaceState(null, '', url);
+}
+
+// Click handlers (bound across both diagrams)
 document.querySelectorAll('.clickable').forEach(el => {
   el.addEventListener('click', e => {
     e.stopPropagation();
@@ -718,18 +1172,16 @@ document.querySelectorAll('.arrow-hit').forEach(el => {
     setState(el.dataset.target);
   });
 });
-function adjustViewBox() {
-  var s = document.getElementById('d');
-  s.setAttribute('viewBox', window.innerWidth < 768 ? '150 0 600 575' : '0 0 960 575');
-}
 window.addEventListener('resize', adjustViewBox);
-adjustViewBox();
-
 document.body.addEventListener('click', e => {
-  if (!e.target.closest('#sidebar') && !e.target.closest('.clickable') && !e.target.closest('.arrow-hit')) {
+  if (!e.target.closest('#sidebar') && !e.target.closest('.clickable') && !e.target.closest('.arrow-hit') && !e.target.closest('header')) {
     setState(null);
   }
 });
+
+// Snapshot original styles for both diagrams, then initialise from ?v=
+document.querySelectorAll('svg.diagram').forEach(snapshotStyles);
+setVersion(new URLSearchParams(window.location.search).get('v') === 'troopers' ? 'troopers' : 'defcon');
 </script>
 </body>
 </html>

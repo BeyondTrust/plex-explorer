@@ -1,0 +1,270 @@
+openapi: "3.0.3"
+info:
+  title: Plex Code Interpreter — gRPC API Reference
+  version: "1.0.0"
+  description: |
+    Reconstructed gRPC service definitions for Microsoft Copilot Studio's **Python code
+    interpreter** sandbox, which runs on the same Plex platform as the Dataverse plugin sandbox
+    (internal subsystem codename **MiddleEarth**, built by the PAIO team).
+
+    One service forms the execution surface: **Worker** (the Python gRPC server, 2 methods).
+    User-submitted Python runs inside this worker's own interpreter. `Execute` is a single
+    bi-directional stream that multiplexes code execution, input/output file streaming, and
+    outbound connector HTTP callbacks over one channel.
+
+    Reached from outside the container through a YARP reverse-proxy shim
+    (`CodeInterpreterGrpcServiceShim.exe`, .NET 8) on `:9001`, which strips the
+    `/extension/aibuilder` route prefix and forwards to the Python worker (`server.py`) on
+    `:9002`. Transport is mTLS on the loopback hop; there is no application-layer authentication,
+    and `Status` is unauthenticated (`AllowedHosts: "*"`).
+
+    The host-side sidecar is the same shared Plex **SidecarService** documented in the Dataverse
+    plugin spec (environment config, token acquisition, telemetry), delivered to the container via
+    `SIDECARHOST` / `SideCarShimEndpointPort` environment variables.
+
+    Message types were reconstructed from the worker source (`workerservice.py`, `worker_pb2.py`,
+    `core_interfaces.py`). gRPC methods are mapped as POST endpoints following standard transcoding
+    conventions.
+
+servers:
+  - url: "https://containerIP:9001"
+    description: "CodeInterpreterGrpcServiceShim (YARP) — external TLS entry, route /extension/aibuilder/{**catchall}"
+  - url: "https://127.0.0.1:9002"
+    description: "Worker — Python gRPC code interpreter, loopback mTLS inside the container"
+
+tags:
+  - name: Worker
+    description: |
+      `Worker` — 2 methods. The Python code interpreter gRPC server (`server.py`) inside the
+      container, listening on `:9002` (mTLS loopback), running as `ContainerUser`. `Execute` is a
+      bi-directional stream carrying code execution, input/output file streaming, and connector HTTP
+      callbacks. Reached from outside the container through the YARP reverse-proxy shim on `:9001`.
+      Transport is mTLS; there is no application-layer authentication, and `Status` is
+      unauthenticated.
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Worker methods (2 methods)
+  # ---------------------------------------------------------------------------
+
+  /Worker/Execute:
+    post:
+      tags: [Worker]
+      operationId: Worker_Execute
+      summary: Run code in the interpreter and stream results (bi-directional streaming)
+      description: |
+        Bi-directional streaming RPC (MethodType 3). The primary code interpreter channel.
+
+        The client streams `ExecuteRequest` messages: `codeRequest` to run a block of Python,
+        `fileStreamRequest` to upload an input file in chunks, and `httpResponse` to return the
+        result of a connector callback the worker previously asked for.
+
+        The worker streams `ExecuteReply` messages: `codeReply` with the execution result,
+        `fileStreamRequest` to stream generated output files back, `httpRequest` to make an
+        outbound connector call (the designed egress path, via `connector_client`), and
+        `fileStreamResponse` to acknowledge an upload.
+
+        Each message carries an `id` used to correlate connector callbacks with their responses.
+        Authentication: mTLS transport only, no application-layer auth.
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/ExecuteRequest"
+      responses:
+        "200":
+          description: Stream of execution results, output file chunks, and connector callbacks
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/ExecuteReply"
+
+  /Worker/Status:
+    post:
+      tags: [Worker]
+      operationId: Worker_Status
+      summary: Health check the code interpreter worker
+      description: |
+        Unary RPC (MethodType 0). Returns the worker health status. Unauthenticated: any caller
+        that can reach the port gets a response (`status_code` 200, `message` "OK").
+      requestBody:
+        required: true
+        content:
+          application/grpc+proto:
+            schema:
+              $ref: "#/components/schemas/StatusRequest"
+      responses:
+        "200":
+          description: Worker health status
+          content:
+            application/grpc+proto:
+              schema:
+                $ref: "#/components/schemas/StatusReply"
+
+components:
+  schemas:
+    # =========================================================================
+    # Worker message types
+    # =========================================================================
+
+    ExecuteRequest:
+      type: object
+      description: "Client-to-worker message on the Execute stream"
+      properties:
+        id:
+          type: string
+          description: "Field 1: message id, correlates connector callbacks with responses"
+        RequestData:
+          type: object
+          description: "oneof RequestData — exactly one of the following is set"
+          properties:
+            codeRequest:
+              allOf: [{ $ref: "#/components/schemas/CodeExecutionRequestMessage" }]
+              description: "Field 2: a block of Python to execute"
+            fileStreamRequest:
+              allOf: [{ $ref: "#/components/schemas/FileStreamRequest" }]
+              description: "Field 3: a chunk of an input file being uploaded"
+            httpResponse:
+              allOf: [{ $ref: "#/components/schemas/HttpResponseMessagePayload" }]
+              description: "Field 4: the response to a connector callback the worker requested"
+
+    ExecuteReply:
+      type: object
+      description: "Worker-to-client message on the Execute stream"
+      properties:
+        id:
+          type: string
+          description: "Field 1: message id (echoes the request id, or a new id for a callback)"
+        codeReply:
+          allOf: [{ $ref: "#/components/schemas/CodeExecutionResponseMessage" }]
+          description: "Field 2: result of a code execution request"
+        httpRequest:
+          allOf: [{ $ref: "#/components/schemas/HttpRequestMessagePayload" }]
+          description: "Field 3: an outbound connector call (the designed egress callback)"
+        fileStreamRequest:
+          allOf: [{ $ref: "#/components/schemas/FileStreamRequest" }]
+          description: "Field 4: a chunk of a generated output file being streamed back"
+        fileStreamResponse:
+          allOf: [{ $ref: "#/components/schemas/FileStreamResponse" }]
+          description: "Field 5: acknowledgement of an uploaded input file"
+
+    CodeExecutionRequestMessage:
+      type: object
+      description: "A request to run user-submitted Python in the sandbox"
+      properties:
+        Code:
+          type: string
+          description: "Field 1: the Python source to execute"
+        Input:
+          type: object
+          description: "Field 2: google.protobuf.Struct of inputs (e.g. StreamFileOutputs flag, uploaded input values)"
+
+    CodeExecutionResponseMessage:
+      type: object
+      description: "The result of a code execution request"
+      properties:
+        status_code:
+          type: integer
+          description: "Field 1: 200 on success, 500 if the code raised or set an error"
+        body:
+          type: object
+          description: "Field 2: google.protobuf.Struct output dictionary (may include a files list or an error object)"
+
+    FileStreamRequest:
+      type: object
+      description: "A chunk of a file, used both for input upload and output streaming"
+      properties:
+        Name:
+          type: string
+          description: "Field 1: file name"
+        Data:
+          type: string
+          format: byte
+          description: "Field 2: raw chunk bytes"
+        EndOfStream:
+          type: boolean
+          description: "Field 3: true on the final chunk"
+
+    FileStreamResponse:
+      type: object
+      description: "Acknowledgement for an uploaded file"
+      properties:
+        status_code:
+          type: integer
+          description: "Field 1: 200 on success"
+
+    HttpRequestMessagePayload:
+      type: object
+      description: "An outbound connector HTTP call made by user code via connector_client.make_request"
+      properties:
+        method:
+          allOf: [{ $ref: "#/components/schemas/HttpMethodEnum" }]
+          description: "Field 1: HTTP method"
+        connectorName:
+          type: string
+          description: "Field 2: the Power Platform connector to route through (not validated container-side)"
+        path:
+          type: string
+          description: "Field 3: request path (without query string)"
+        content_type:
+          type: string
+          description: "Field 4: body content type"
+        query_params:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Field 5: map<string,string> of query parameters"
+        json_body:
+          type: object
+          description: "Field 6 (oneof body): google.protobuf.Struct JSON body"
+        raw_body:
+          type: string
+          format: byte
+          description: "Field 7 (oneof body): raw bytes body"
+        text_body:
+          type: string
+          description: "Field 8 (oneof body): text body"
+
+    HttpResponseMessagePayload:
+      type: object
+      description: "The response returned for a connector callback"
+      properties:
+        status_code:
+          type: integer
+          description: "Field 1: HTTP status code"
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Field 2: response headers"
+        json_body:
+          type: object
+          description: "Field 3 (oneof body_payload): google.protobuf.Struct JSON body"
+        text_body:
+          type: string
+          description: "Field 4 (oneof body_payload): text body"
+        raw_body:
+          type: string
+          format: byte
+          description: "Field 5 (oneof body_payload): raw bytes body"
+
+    HttpMethodEnum:
+      type: string
+      description: "HTTP methods supported by the connector client"
+      enum: [GET, POST, PUT, DELETE, PATCH]
+
+    StatusRequest:
+      type: object
+      description: "Health check request (no fields)"
+
+    StatusReply:
+      type: object
+      description: "Health check response"
+      properties:
+        status_code:
+          type: integer
+          description: "Field 1: health status code (200 = OK)"
+        message:
+          type: string
+          description: "Field 2: status message (e.g. OK)"

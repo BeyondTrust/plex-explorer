@@ -4,9 +4,11 @@ A learning aid for security researchers explaining Microsoft's Dataverse plugin 
 
 Dataverse is the data layer behind Power Platform (Copilot Studio, Power Apps, Power Automate, etc.) and Dynamics 365. Customers extend it with plugins, custom .NET code triggered by data events like create or update. To stop untrusted third-party code from reaching the platform or other tenants, each plugin runs inside a sandbox: a .NET worker process in a Hyper-V isolated container. Microsoft runs these sandboxes at scale across Azure as part of the hosted Dataverse service. Plex is the internal name for the system that manages and executes them.
 
-Presented at [Troopers 26](https://troopers.de/) by Simon Maxwell-Stewart ([BeyondTrust](https://x.com/btphantomlabs)).
+Presented at [DEF CON 34](https://defcon.org/) and[Troopers 26](https://troopers.de/) by Simon Maxwell-Stewart ([BeyondTrust](https://x.com/btphantomlabs)).
 
 **[Interactive Architecture Explorer](https://plex.btphantomlabs.com/)**
+
+The explorer covers two Plex sandbox surfaces, switchable from the version dropdown: the **Copilot Studio Python code interpreter** (DEF CON 34, shown by default) and the **Dataverse plugin sandbox** (Troopers 26). Each has its own architecture diagram and gRPC reference.
 
 
 ## Tools
